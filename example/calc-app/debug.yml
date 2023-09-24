@@ -1,0 +1,22 @@
+---
+app:
+  name: calc-app
+workers:
+  worker-redis-redis:
+    requestProducer:
+      type: redis
+      redis:
+        addrs:
+          - localhost:6379
+        channel: redis-redis
+    resultSubscriber:
+      type: redis
+      redis:
+        addrs:
+          - localhost:6379
+trace:
+  exporter: jaeger
+  jaeger:
+    endpoint: http://localhost:14268/api/traces
+log:
+  level: debug

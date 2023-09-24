@@ -1,0 +1,33 @@
+---
+version: '3'
+services:
+  dev-kafka:
+    image: confluentinc/cp-kafka
+    container_name: bamboo-kafka
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: dev-zookeeper:32181
+      KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29092,INTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://dev-kafka:9092,EXTERNAL_SAME_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - 29092:29092
+    depends_on:
+      - dev-zookeeper
+  dev-zookeeper:
+    image: confluentinc/cp-zookeeper
+    container_name: bamboo-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 32181
+  dev-redis:
+    image: "redis:7.0"
+    container_name: bamboo-redis
+    ports:
+      - "6379:6379"
+  dev-jaeger:
+    image: jaegertracing/all-in-one:1.33.0
+    container_name: bamboo-jaeger
+    ports:
+      - 14268:14268
+      - 16686:16686

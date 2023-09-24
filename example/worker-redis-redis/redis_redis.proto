@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+option go_package = "github.com/pecolynx/bamboo/example/worker-redis-redis/main";
+
+package proto;
+
+message RedisRedisParameter {
+  int32   x = 1;
+  int32   y = 2;
+}
+
+message RedisRedisResponse {
+  int32   value = 1;
+}

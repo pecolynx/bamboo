@@ -13,4 +13,4 @@ lint:
 	popd
 
 work-use:
-	@go work use ./ example/worker-redis-redis
+	@go work use ./ example/worker-redis-redis example/calc-app

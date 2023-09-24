@@ -1,0 +1,24 @@
+
+---
+app:
+  name: worker-redis-redis
+worker:
+  consumer:
+    type: redis
+    redis:
+      addrs:
+        - "localhost:6379"
+      channel: redis-redis
+  publisher:
+    type: redis
+    redis:
+      addrs:
+        - "localhost:6379"
+      password:
+  numWorkers: 5
+trace:
+  exporter: jaeger
+  jaeger:
+    endpoint: http://localhost:14268/api/traces
+log:
+  level: debug
