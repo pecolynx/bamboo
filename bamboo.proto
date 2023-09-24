@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+option go_package = "github.com/pecolynx/bamboo";
+
+package bamboo;
+
+message WorkerParameter {
+  map<string, string> carrier = 1;
+  map<string, string> headers = 2;
+  string              resultChannel = 3;
+  int32               heartbeatIntervalSec = 4;
+  int32               jobTimeoutSec = 5;
+  bytes               data = 6;
+}
+
+enum ResponseType {
+  HEARTBEAT = 0;
+  DATA = 1;
+}
+
+message WorkerResponse {
+  ResponseType type = 1;
+  bytes        data = 2;
+}
