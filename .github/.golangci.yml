@@ -1,0 +1,18 @@
+---
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+
+  staticcheck:
+    # Select the Go version to target.
+    # Default: 1.13
+    go: "1.21"
+    # https://staticcheck.io/docs/options#checks
+    checks: ["all", "-SA1019"]
+
+  gocognit:
+    min-complexity: 20
+
+  forbidigo:
+    forbid:
+      - fmt\.Print.*

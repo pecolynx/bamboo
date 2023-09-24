@@ -11,3 +11,6 @@ lint:
 	@pushd ./ && \
 		golangci-lint run --config .github/.golangci.yml && \
 	popd
+
+work-use:
+	@go work use ./ example/worker-redis-redis
