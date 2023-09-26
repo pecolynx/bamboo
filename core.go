@@ -19,6 +19,11 @@ type BambooResultSubscriber interface {
 	Subscribe(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int) ([]byte, error)
 }
 
+type BambooResultPublishder interface {
+	Ping(ctx context.Context) error
+	Publish(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int) ([]byte, error)
+}
+
 type BambooWorker interface {
 	Run(ctx context.Context) error
 }
@@ -29,3 +34,4 @@ type LogConfigFunc func(ctx context.Context, headers map[string]string) context.
 
 var ErrTimedout = errors.New("Timedout")
 var ErrAborted = errors.New("Aborted")
+var ErrContextCanceled = errors.New("ContextCanceled")

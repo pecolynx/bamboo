@@ -3,6 +3,7 @@ package bamboo
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -14,22 +15,26 @@ import (
 )
 
 type redisRedisBambooWorker struct {
-	consumerOptions  *redis.UniversalOptions
-	consumerChannel  string
-	publisherOptions *redis.UniversalOptions
-	workerFunc       WorkerFunc
-	numWorkers       int
-	logConfigFunc    LogConfigFunc
+	consumerOptions    *redis.UniversalOptions
+	consumerChannel    string
+	requestWaitTimeout time.Duration
+	publisherOptions   *redis.UniversalOptions
+	workerFunc         WorkerFunc
+	numWorkers         int
+	logConfigFunc      LogConfigFunc
+	workerPool         chan chan internal.Job
 }
 
-func NewRedisRedisBambooWorker(consumerOptions *redis.UniversalOptions, consumerChannel string, publisherOptions *redis.UniversalOptions, workerFunc WorkerFunc, numWorkers int, logConfigFunc LogConfigFunc) BambooWorker {
+func NewRedisRedisBambooWorker(consumerOptions *redis.UniversalOptions, consumerChannel string, requestWaitTimeout time.Duration, publisherOptions *redis.UniversalOptions, workerFunc WorkerFunc, numWorkers int, logConfigFunc LogConfigFunc) BambooWorker {
 	return &redisRedisBambooWorker{
-		consumerOptions:  consumerOptions,
-		consumerChannel:  consumerChannel,
-		publisherOptions: publisherOptions,
-		workerFunc:       workerFunc,
-		numWorkers:       numWorkers,
-		logConfigFunc:    logConfigFunc,
+		consumerOptions:    consumerOptions,
+		consumerChannel:    consumerChannel,
+		requestWaitTimeout: requestWaitTimeout,
+		publisherOptions:   publisherOptions,
+		workerFunc:         workerFunc,
+		numWorkers:         numWorkers,
+		logConfigFunc:      logConfigFunc,
+		workerPool:         make(chan chan internal.Job),
 	}
 }
 
@@ -52,28 +57,74 @@ func (w *redisRedisBambooWorker) ping(ctx context.Context) error {
 func (w *redisRedisBambooWorker) Run(ctx context.Context) error {
 	logger := internal.FromContext(ctx)
 
+	workers := make([]internal.Worker, w.numWorkers)
+	for i := 0; i < w.numWorkers; i++ {
+		workers[i] = internal.NewWorker(i, w.workerPool)
+		workers[i].Start(ctx)
+	}
+
 	operation := func() error {
 		if err := w.ping(ctx); err != nil {
 			return internal.Errorf("ping. err: %w", err)
 		}
 
-		dispatcher := internal.NewDispatcher()
-		defer dispatcher.Stop(ctx)
-		dispatcher.Start(ctx, w.numWorkers)
-
-		consumer := redis.NewUniversalClient(w.publisherOptions)
+		consumer := redis.NewUniversalClient(w.consumerOptions)
 		defer consumer.Close()
 
 		for {
-			m, err := consumer.BRPop(ctx, 0, w.consumerChannel).Result()
-			if err != nil {
-				return internal.Errorf("consumer.BRPop. err: %w", err)
+			select {
+			case <-ctx.Done():
+				return nil
+			case worker := <-w.workerPool: // wait for available worker
+				logger.Debug("worker is ready")
+
+				job, err := w.waitRequest(ctx, consumer)
+				if errors.Is(err, ErrContextCanceled) {
+					return nil
+				} else if err != nil {
+					worker <- internal.NewEmptyJob()
+					return err
+				}
+
+				logger.Debug("dispatch job to worker")
+				worker <- job
+			}
+		}
+	}
+
+	backOff := backoff.WithContext(w.newBackOff(), ctx)
+
+	notify := func(err error, d time.Duration) {
+		logger.Errorf("redis reading error. err: %v", err)
+	}
+
+	err := backoff.RetryNotify(operation, backOff, notify)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (w *redisRedisBambooWorker) waitRequest(ctx context.Context, consumer redis.UniversalClient) (internal.Job, error) {
+	logger := internal.FromContext(ctx)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ErrContextCanceled
+		default:
+			m, err := consumer.BRPop(ctx, w.requestWaitTimeout, w.consumerChannel).Result()
+			if errors.Is(err, redis.Nil) {
+				continue
+			} else if err != nil {
+				return nil, internal.Errorf("consumer.BRPop. err: %w", err)
 			}
 
 			if len(m) == 1 {
-				return internal.Errorf("received invalid data. m[0]: %s, err: %w", m[0], err)
+				return nil, internal.Errorf("received invalid data. m[0]: %s, err: %w", m[0], err)
 			} else if len(m) != 2 {
-				return internal.Errorf("received invalid data. err: %w", err)
+				return nil, internal.Errorf("received invalid data. err: %w", err)
 			}
 
 			reqStr := m[1]
@@ -103,22 +154,15 @@ func (w *redisRedisBambooWorker) Run(ctx context.Context) error {
 			heartbeatPublisher.Run(reqCtx)
 
 			var carrier propagation.MapCarrier = req.Carrier
-			dispatcher.AddJob(NewRedisJob(reqCtx, carrier, w.workerFunc, req.Headers, req.Data, w.publisherOptions, req.ResultChannel, done, aborted, w.logConfigFunc))
+			job := NewRedisJob(reqCtx, carrier, w.workerFunc, req.Headers, req.Data, w.publisherOptions, req.ResultChannel, done, aborted, w.logConfigFunc)
 
+			return job, nil
 		}
 	}
+}
 
+func (w *redisRedisBambooWorker) newBackOff() backoff.BackOff {
 	backOff := backoff.NewExponentialBackOff()
 	backOff.MaxElapsedTime = 0
-
-	notify := func(err error, d time.Duration) {
-		logger.Errorf("redis reading error. err: %v", err)
-	}
-
-	err := backoff.RetryNotify(operation, backOff, notify)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return backOff
 }

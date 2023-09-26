@@ -9,13 +9,14 @@ worker:
       addrs:
         - "localhost:6379"
       channel: redis-redis
+      requestWaitTimeoutSec: 5
   publisher:
     type: redis
     redis:
       addrs:
         - "localhost:6379"
       password:
-  numWorkers: 5
+  numWorkers: 2
 trace:
   exporter: jaeger
   jaeger:

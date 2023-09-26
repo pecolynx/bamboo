@@ -95,7 +95,7 @@ func main() {
 	logger.Info("Started calc-app")
 
 	wg := sync.WaitGroup{}
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 2; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -115,13 +115,19 @@ func main() {
 			expr := expr{app: &app}
 
 			a := expr.workerRedisRedis(logCtx, 3, 5)
-			b := expr.workerRedisRedis(logCtx, a, 7)
+			// b := expr.workerRedisRedis(logCtx, a, 7)
 
 			if expr.getError() != nil {
 				logger.Errorf("failed to run (3 * 5 * 7). err: %v", expr.getError())
 			} else {
-				logger.Infof("3 * 5 * 7= %d", b)
+				logger.Infof("3 * 5 * 7= %d", a)
 			}
+
+			// if expr.getError() != nil {
+			// 	logger.Errorf("failed to run (3 * 5 * 7). err: %v", expr.getError())
+			// } else {
+			// 	logger.Infof("3 * 5 * 7= %d", b)
+			// }
 		}()
 	}
 	wg.Wait()
