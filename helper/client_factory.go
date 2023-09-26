@@ -8,9 +8,10 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 
 	"github.com/pecolynx/bamboo"
+	"github.com/pecolynx/bamboo/internal"
 )
 
-func CreateWorkerClient(ctx context.Context, workerName string, cfg *WorkerClientConfig, propagator propagation.TextMapPropagator) WorkerClient {
+func CreateWorkerClient(ctx context.Context, workerName string, cfg *WorkerClientConfig, propagator propagation.TextMapPropagator) (WorkerClient, error) {
 	var rp bamboo.BambooRequestProducer
 	var rs bamboo.BambooResultSubscriber
 
@@ -24,13 +25,18 @@ func CreateWorkerClient(ctx context.Context, workerName string, cfg *WorkerClien
 		rp = bamboo.NewRedisBambooRequestProducer(ctx, workerName, redis.UniversalOptions{
 			Addrs: cfg.RequestProducer.Redis.Addrs,
 		}, cfg.RequestProducer.Redis.Channel, propagator)
+	} else {
+		return nil, internal.Errorf("invalid requestproducer type: %s", cfg.RequestProducer.Type)
 	}
+
 	if cfg.ResultSubscriber.Type == "redis" {
-		rs = bamboo.NewRedisResultSubscriber(ctx, workerName, &redis.UniversalOptions{
+		rs = bamboo.NewRedisBambooResultSubscriber(ctx, workerName, &redis.UniversalOptions{
 			Addrs:    cfg.ResultSubscriber.Redis.Addrs,
 			Password: cfg.ResultSubscriber.Redis.Password,
 		})
+	} else {
+		return nil, internal.Errorf("invalid requestproducer type: %s", cfg.RequestProducer.Type)
 	}
 
-	return NewWorkerClient(rp, rs)
+	return NewWorkerClient(rp, rs), nil
 }

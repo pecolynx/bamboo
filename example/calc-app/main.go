@@ -81,7 +81,11 @@ func main() {
 
 	clients := map[string]helper.WorkerClient{}
 	for k, v := range cfg.Workers {
-		clients[k] = helper.CreateWorkerClient(ctx, k, v, otel.GetTextMapPropagator())
+		var err error
+		clients[k], err = helper.CreateWorkerClient(ctx, k, v, otel.GetTextMapPropagator())
+		if err != nil {
+			panic(err)
+		}
 		defer clients[k].Close(ctx)
 	}
 
