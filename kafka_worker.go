@@ -2,35 +2,34 @@ package bamboo
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/redis/go-redis/v9"
+	"github.com/segmentio/kafka-go"
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/pecolynx/bamboo/internal"
 )
 
-type redisRedisBambooWorker struct {
-	consumerOptions    *redis.UniversalOptions
-	consumerChannel    string
+type kafkaBambooWorker struct {
+	consumerOptions    kafka.ReaderConfig
 	requestWaitTimeout time.Duration
-	publisherOptions   *redis.UniversalOptions
+	resultPublisher    BambooResultPublisher
+	heartbeatPublisher BambooHeartbeatPublisher
 	workerFunc         WorkerFunc
 	numWorkers         int
 	logConfigFunc      LogConfigFunc
 	workerPool         chan chan internal.Job
 }
 
-func NewRedisRedisBambooWorker(consumerOptions *redis.UniversalOptions, consumerChannel string, requestWaitTimeout time.Duration, publisherOptions *redis.UniversalOptions, workerFunc WorkerFunc, numWorkers int, logConfigFunc LogConfigFunc) BambooWorker {
-	return &redisRedisBambooWorker{
+func NewKafkaBambooWorker(consumerOptions kafka.ReaderConfig, requestWaitTimeout time.Duration, resultPublisher BambooResultPublisher, heartbeatPublisher BambooHeartbeatPublisher, workerFunc WorkerFunc, numWorkers int, logConfigFunc LogConfigFunc) BambooWorker {
+	return &kafkaBambooWorker{
 		consumerOptions:    consumerOptions,
-		consumerChannel:    consumerChannel,
 		requestWaitTimeout: requestWaitTimeout,
-		publisherOptions:   publisherOptions,
+		resultPublisher:    resultPublisher,
+		heartbeatPublisher: heartbeatPublisher,
 		workerFunc:         workerFunc,
 		numWorkers:         numWorkers,
 		logConfigFunc:      logConfigFunc,
@@ -38,23 +37,29 @@ func NewRedisRedisBambooWorker(consumerOptions *redis.UniversalOptions, consumer
 	}
 }
 
-func (w *redisRedisBambooWorker) ping(ctx context.Context) error {
-	consumer := redis.NewUniversalClient(w.consumerOptions)
-	defer consumer.Close()
-	if _, err := consumer.Ping(ctx).Result(); err != nil {
-		return internal.Errorf("consumer.Ping. err: %w", err)
+func (w *kafkaBambooWorker) ping(ctx context.Context) error {
+	if len(w.consumerOptions.Brokers) == 0 {
+		return errors.New("broker size is 0")
 	}
 
-	publisher := redis.NewUniversalClient(w.publisherOptions)
-	defer publisher.Close()
-	if _, err := publisher.Ping(ctx).Result(); err != nil {
+	conn, err := kafka.Dial("tcp", w.consumerOptions.Brokers[0])
+	if err != nil {
+		return internal.Errorf("kafka.Dial. err: %w", err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.ReadPartitions(); err != nil {
+		return internal.Errorf("conn.ReadPartitions. err: %w", err)
+	}
+
+	if err := w.resultPublisher.Ping(ctx); err != nil {
 		return internal.Errorf("publisher.Ping. err: %w", err)
 	}
 
 	return nil
 }
 
-func (w *redisRedisBambooWorker) Run(ctx context.Context) error {
+func (w *kafkaBambooWorker) Run(ctx context.Context) error {
 	logger := internal.FromContext(ctx)
 
 	workers := make([]internal.Worker, w.numWorkers)
@@ -68,7 +73,7 @@ func (w *redisRedisBambooWorker) Run(ctx context.Context) error {
 			return internal.Errorf("ping. err: %w", err)
 		}
 
-		consumer := redis.NewUniversalClient(w.consumerOptions)
+		consumer := kafka.NewReader(w.consumerOptions)
 		defer consumer.Close()
 
 		for {
@@ -106,7 +111,7 @@ func (w *redisRedisBambooWorker) Run(ctx context.Context) error {
 	return nil
 }
 
-func (w *redisRedisBambooWorker) waitRequest(ctx context.Context, consumer redis.UniversalClient) (internal.Job, error) {
+func (w *kafkaBambooWorker) waitRequest(ctx context.Context, consumer *kafka.Reader) (internal.Job, error) {
 	logger := internal.FromContext(ctx)
 
 	for {
@@ -114,28 +119,19 @@ func (w *redisRedisBambooWorker) waitRequest(ctx context.Context, consumer redis
 		case <-ctx.Done():
 			return nil, ErrContextCanceled
 		default:
-			m, err := consumer.BRPop(ctx, w.requestWaitTimeout, w.consumerChannel).Result()
-			if errors.Is(err, redis.Nil) {
-				continue
-			} else if err != nil {
-				return nil, internal.Errorf("consumer.BRPop. err: %w", err)
-			}
-
-			if len(m) == 1 {
-				return nil, internal.Errorf("received invalid data. m[0]: %s, err: %w", m[0], err)
-			} else if len(m) != 2 {
-				return nil, internal.Errorf("received invalid data. err: %w", err)
-			}
-
-			reqStr := m[1]
-			reqBytes, err := base64.StdEncoding.DecodeString(reqStr)
+			m, err := consumer.ReadMessage(ctx)
 			if err != nil {
-				logger.Warnf("invalid parameter. failed to base64.StdEncoding.DecodeString. err: %w", err)
-				continue
+				return nil, internal.Errorf("kafka.ReadMessage. err: %w", err)
 			}
+
+			if len(m.Key) == 0 && len(m.Value) == 0 {
+				return nil, errors.New("size of kafkaMessage received is invalid")
+			}
+
+			// fmt.Printf("message at offset %d: %s = %s\n", m.Offset, string(m.Key), string(m.Value))
 
 			req := WorkerParameter{}
-			if err := proto.Unmarshal(reqBytes, &req); err != nil {
+			if err := proto.Unmarshal(m.Value, &req); err != nil {
 				logger.Warnf("invalid parameter. failed to proto.Unmarshal. err: %w", err)
 				continue
 			}
@@ -143,25 +139,27 @@ func (w *redisRedisBambooWorker) waitRequest(ctx context.Context, consumer redis
 			done := make(chan interface{})
 			aborted := make(chan interface{})
 
+			reqCtx := w.logConfigFunc(ctx, req.Headers)
+
 			if req.JobTimeoutSec != 0 {
 				time.AfterFunc(time.Duration(req.JobTimeoutSec)*time.Second, func() {
 					close(aborted)
 				})
 			}
 
-			reqCtx := w.logConfigFunc(ctx, req.Headers)
-			heartbeatPublisher := NewRedisBambooHeartbeatPublisher(w.publisherOptions, req.ResultChannel, int(req.HeartbeatIntervalSec), done, aborted)
-			heartbeatPublisher.Run(reqCtx)
+			if req.HeartbeatIntervalSec != 0 {
+				w.heartbeatPublisher.Run(reqCtx, req.ResultChannel, int(req.HeartbeatIntervalSec), done, aborted)
+			}
 
 			var carrier propagation.MapCarrier = req.Carrier
-			job := NewRedisJob(reqCtx, carrier, w.workerFunc, req.Headers, req.Data, w.publisherOptions, req.ResultChannel, done, aborted, w.logConfigFunc)
+			job := NewWorkerJob(reqCtx, carrier, w.workerFunc, req.Headers, req.Data, w.resultPublisher, req.ResultChannel, done, aborted, w.logConfigFunc)
 
 			return job, nil
 		}
 	}
 }
 
-func (w *redisRedisBambooWorker) newBackOff() backoff.BackOff {
+func (w *kafkaBambooWorker) newBackOff() backoff.BackOff {
 	backOff := backoff.NewExponentialBackOff()
 	backOff.MaxElapsedTime = 0
 	return backOff

@@ -19,9 +19,13 @@ type BambooResultSubscriber interface {
 	Subscribe(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int) ([]byte, error)
 }
 
-type BambooResultPublishder interface {
+type BambooResultPublisher interface {
 	Ping(ctx context.Context) error
-	Publish(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int) ([]byte, error)
+	Publish(ctx context.Context, resultChannel string, result []byte) error
+}
+
+type BambooHeartbeatPublisher interface {
+	Run(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{})
 }
 
 type BambooWorker interface {
