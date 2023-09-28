@@ -67,7 +67,10 @@ jobs:
       - name: Test
         if: steps.changed-files-specific.outputs.any_changed == 'true'
         working-directory: ${{ matrix.workdir }}
-        run: go test -coverprofile="coverage.txt" -covermode=atomic ./... -count=1
+        run: |
+          make work-init
+          make work-use
+          go test -coverprofile="coverage.txt" -covermode=atomic ./... -count=1
       - name: Coverage
         uses: codecov/codecov-action@v3
         with:

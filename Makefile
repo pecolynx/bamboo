@@ -24,6 +24,10 @@ lint:
 		golangci-lint run --config .github/.golangci.yml && \
 	popd
 
+.PHONY: work-init
+work-init:
+	@go work init
+
 .PHONY: work-use
 work-use:
 	@go work use ./ example/worker-redis-redis example/calc-app
@@ -36,4 +40,3 @@ test-docker-up:
 .PHONY: test-docker-down
 test-docker-down:
 	@docker-compose -f docker-compose-test.yml down
-	
