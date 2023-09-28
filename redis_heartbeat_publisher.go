@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/pecolynx/bamboo/internal"
+	pb "github.com/pecolynx/bamboo/proto"
 )
 
 type redisBambooHeartbeatPublisher struct {
@@ -17,7 +18,7 @@ type redisBambooHeartbeatPublisher struct {
 }
 
 func NewRedisBambooHeartbeatPublisher(publisherOptions *redis.UniversalOptions) BambooHeartbeatPublisher {
-	heartbeatResp := WorkerResponse{Type: ResponseType_HEARTBEAT}
+	heartbeatResp := pb.WorkerResponse{Type: pb.ResponseType_HEARTBEAT}
 	heartbeatRespBytes, err := proto.Marshal(&heartbeatResp)
 	if err != nil {
 		panic(err)
@@ -29,6 +30,16 @@ func NewRedisBambooHeartbeatPublisher(publisherOptions *redis.UniversalOptions) 
 		publisherOptions: publisherOptions,
 		heartbeatRespStr: heartbeatRespStr,
 	}
+}
+
+func (p *redisBambooHeartbeatPublisher) Ping(ctx context.Context) error {
+	publisher := redis.NewUniversalClient(p.publisherOptions)
+	defer publisher.Close()
+	if _, err := publisher.Ping(ctx).Result(); err != nil {
+		return internal.Errorf("publisher.Ping. err: %w", err)
+	}
+
+	return nil
 }
 
 func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{}) {

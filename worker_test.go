@@ -1,6 +1,8 @@
 package bamboo_test
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestA(t *testing.T) {
 }

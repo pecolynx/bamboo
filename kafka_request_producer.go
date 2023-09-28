@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/pecolynx/bamboo/internal"
+	pb "github.com/pecolynx/bamboo/proto"
 )
 
 type kafkaBambooRequestProducer struct {
@@ -38,7 +39,7 @@ func (p *kafkaBambooRequestProducer) Produce(ctx context.Context, resultChannel 
 		return internal.Errorf("uuid.NewRandom. err: %w", err)
 	}
 
-	req := WorkerParameter{
+	req := pb.WorkerParameter{
 		Carrier:       carrier,
 		Headers:       headers,
 		ResultChannel: resultChannel,
@@ -58,6 +59,10 @@ func (p *kafkaBambooRequestProducer) Produce(ctx context.Context, resultChannel 
 		return internal.Errorf("kafkaWriter.WriteMessages. err: %w", err)
 	}
 
+	return nil
+}
+
+func (p *kafkaBambooRequestProducer) Ping(ctx context.Context) error {
 	return nil
 }
 

@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-option go_package = "github.com/pecolynx/bamboo";
+option go_package = "github.com/pecolynx/bamboo/proto";
 
-package bamboo;
+package proto;
 
 message WorkerParameter {
   map<string, string> carrier = 1;

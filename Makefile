@@ -2,15 +2,13 @@ SHELL=/bin/bash
 
 .PHONY: gen-proto
 gen-proto:
-	@protoc --go_out=./ --go_opt=paths=source_relative \
-        --go-grpc_out=./ --go-grpc_opt=paths=source_relative \
+	@protoc --go_out=./proto --go_opt=paths=source_relative \
+        --go-grpc_out=./proto --go-grpc_opt=paths=source_relative \
         ./bamboo.proto
 
 .PHONY: gen-src
 gen-src:
-	@pushd ./ && \
-		go generate ./... && \
-	popd
+	mockery
 
 .PHONY: update-mod
 update-mod:

@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/pecolynx/bamboo/internal"
+	pb "github.com/pecolynx/bamboo/proto"
 )
 
 type redisBambooRequestProducer struct {
@@ -35,7 +36,7 @@ func (p *redisBambooRequestProducer) Produce(ctx context.Context, resultChannel 
 
 	p.propagator.Inject(spanCtx, carrier)
 
-	req := WorkerParameter{
+	req := pb.WorkerParameter{
 		Carrier:              carrier,
 		Headers:              headers,
 		ResultChannel:        resultChannel,
@@ -54,6 +55,17 @@ func (p *redisBambooRequestProducer) Produce(ctx context.Context, resultChannel 
 
 	if _, err := producer.LPush(ctx, p.producerChannel, reqStr).Result(); err != nil {
 		return internal.Errorf("producer.LPush. err: %w", err)
+	}
+
+	return nil
+}
+
+func (p *redisBambooRequestProducer) Ping(ctx context.Context) error {
+	producer := redis.NewUniversalClient(&p.producerOptions)
+	defer producer.Close()
+
+	if _, err := producer.Ping(ctx).Result(); err != nil {
+		return internal.Errorf("producer.Ping. err: %w", err)
 	}
 
 	return nil

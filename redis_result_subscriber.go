@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/pecolynx/bamboo/internal"
+	pb "github.com/pecolynx/bamboo/proto"
 )
 
 type ByteArreayResult struct {
@@ -85,12 +86,12 @@ func (s *redisBambooResultSubscriber) Subscribe(ctx context.Context, resultChann
 					return
 				}
 
-				resp := WorkerResponse{}
+				resp := pb.WorkerResponse{}
 				if err := proto.Unmarshal(respBytes, &resp); err != nil {
 					c1 <- ByteArreayResult{Value: nil, Error: err}
 					return
 				}
-				if resp.Type == ResponseType_HEARTBEAT {
+				if resp.Type == pb.ResponseType_HEARTBEAT {
 					heartbeat <- time.Now().Unix()
 				} else {
 					c1 <- ByteArreayResult{Value: resp.Data, Error: nil}

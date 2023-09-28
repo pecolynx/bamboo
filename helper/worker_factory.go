@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -19,19 +20,22 @@ func CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.WorkerFunc, quit ch
 			Addrs:    cfg.Publisher.Redis.Addrs,
 			Password: cfg.Publisher.Redis.Password,
 		}
-		resultPublisher = bamboo.NewRedisBambooResultPublisher()
+		resultPublisher = bamboo.NewRedisBambooResultPublisher(publisherOptions)
 		heartbeatPublisher = bamboo.NewRedisBambooHeartbeatPublisher(publisherOptions)
 	} else {
 		return nil, fmt.Errorf("invalid publisher type: %s", cfg.Publisher.Type)
 	}
 
+	var createBambooRequestConsumerFunc bamboo.CreateBambooRequestConsumerFunc
 	if cfg.Consumer.Type == "redis" {
 		consumerOptions := &redis.UniversalOptions{
 			Addrs:    cfg.Consumer.Redis.Addrs,
 			Password: cfg.Consumer.Redis.Password,
 		}
 
-		return bamboo.NewRedisBambooWorker(consumerOptions, cfg.Consumer.Redis.Channel, time.Duration(cfg.Consumer.Redis.RequestWaitTimeoutSec)*time.Second, resultPublisher, heartbeatPublisher, workerFunc, cfg.NumWorkers, LogConfigFunc), nil
+		createBambooRequestConsumerFunc = func(ctx context.Context) bamboo.BambooRequestConsumer {
+			return bamboo.NewRedisBambooRequestConsumer(consumerOptions, cfg.Consumer.Redis.Channel, time.Duration(cfg.Consumer.Redis.RequestWaitTimeoutSec)*time.Second)
+		}
 	} else if cfg.Consumer.Type == "kafka" {
 		consumerOptions := kafka.ReaderConfig{
 			Brokers:  cfg.Consumer.Kafka.Brokers,
@@ -40,8 +44,12 @@ func CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.WorkerFunc, quit ch
 			MaxBytes: 10e6, // 10MB
 		}
 
-		return bamboo.NewKafkaBambooWorker(consumerOptions, time.Duration(cfg.Consumer.Redis.RequestWaitTimeoutSec)*time.Second, resultPublisher, heartbeatPublisher, workerFunc, cfg.NumWorkers, LogConfigFunc), nil
+		createBambooRequestConsumerFunc = func(ctx context.Context) bamboo.BambooRequestConsumer {
+			return bamboo.NewKafkaBambooRequestConsumer(consumerOptions, time.Duration(cfg.Consumer.Redis.RequestWaitTimeoutSec)*time.Second)
+		}
 	} else {
 		return nil, fmt.Errorf("invalid consumer type: %s", cfg.Consumer.Type)
 	}
+
+	return bamboo.NewBambooWorker(createBambooRequestConsumerFunc, resultPublisher, heartbeatPublisher, workerFunc, cfg.NumWorkers, LogConfigFunc)
 }
