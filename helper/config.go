@@ -55,9 +55,10 @@ type KafkaConsumerConfig struct {
 }
 
 type RedisConsumerConfig struct {
-	Addrs    []string `yaml:"addrs" validate:"required"`
-	Password string   `yaml:"password"`
-	Channel  string   `yaml:"channel" validate:"required"`
+	Addrs                 []string `yaml:"addrs" validate:"required"`
+	Password              string   `yaml:"password"`
+	Channel               string   `yaml:"channel" validate:"required"`
+	RequestWaitTimeoutSec int      `yaml:"requestWaitTimeoutSec" validate:"required"`
 }
 
 type PublisherConfig struct {

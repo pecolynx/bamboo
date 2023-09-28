@@ -16,21 +16,21 @@ type ByteArreayResult struct {
 	Error error
 }
 
-type RedisResultSubscriber struct {
+type redisBambooResultSubscriber struct {
 	workerName string
 	subscriber redis.UniversalClient
 }
 
-func NewRedisResultSubscriber(ctx context.Context, workerName string, subscriberConfig *redis.UniversalOptions) BambooResultSubscriber {
+func NewRedisBambooResultSubscriber(ctx context.Context, workerName string, subscriberConfig *redis.UniversalOptions) BambooResultSubscriber {
 	subscriber := redis.NewUniversalClient(subscriberConfig)
 
-	return &RedisResultSubscriber{
+	return &redisBambooResultSubscriber{
 		workerName: workerName,
 		subscriber: subscriber,
 	}
 }
 
-func (s *RedisResultSubscriber) Ping(ctx context.Context) error {
+func (s *redisBambooResultSubscriber) Ping(ctx context.Context) error {
 	if _, err := s.subscriber.Ping(ctx).Result(); err != nil {
 		return err
 	}
@@ -38,14 +38,16 @@ func (s *RedisResultSubscriber) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (s *RedisResultSubscriber) Subscribe(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int) ([]byte, error) {
+func (s *redisBambooResultSubscriber) Subscribe(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int) ([]byte, error) {
 	logger := internal.FromContext(ctx)
 
 	pubsub := s.subscriber.Subscribe(ctx, resultChannel)
 	defer pubsub.Close()
+
 	c1 := make(chan ByteArreayResult, 1)
 	done := make(chan interface{})
 	heartbeat := make(chan int64)
+	defer close(heartbeat)
 
 	aborted := make(chan interface{})
 	timedout := make(chan interface{})
@@ -68,7 +70,7 @@ func (s *RedisResultSubscriber) Subscribe(ctx context.Context, resultChannel str
 		for {
 			select {
 			case <-done:
-				logger.Debug("done. stop ReceivingMessage...")
+				logger.Debug("done. stop receiving message...")
 				return
 			default:
 				msg, err := pubsub.ReceiveMessage(ctx)
@@ -111,8 +113,11 @@ func (s *RedisResultSubscriber) Subscribe(ctx context.Context, resultChannel str
 			case <-done:
 				logger.Debug("done")
 				return
-			case last = <-heartbeat:
-				logger.Debug("heartbeat")
+			case h := <-heartbeat:
+				if h != 0 {
+					last = h
+					logger.Debugf("heartbeat, %d", h)
+				}
 			case <-timedout:
 				logger.Debug("timedout")
 				return

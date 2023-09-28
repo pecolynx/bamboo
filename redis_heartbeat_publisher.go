@@ -11,20 +11,12 @@ import (
 	"github.com/pecolynx/bamboo/internal"
 )
 
-type RedisBambooHeartbeatPublisher interface {
-	Run(ctx context.Context)
-}
-
 type redisBambooHeartbeatPublisher struct {
-	publisherOptions     *redis.UniversalOptions
-	resultChannel        string
-	heartbeatIntervalSec int
-	done                 <-chan interface{}
-	aborted              <-chan interface{}
-	heartbeatRespStr     string
+	publisherOptions *redis.UniversalOptions
+	heartbeatRespStr string
 }
 
-func NewRedisBambooHeartbeatPublisher(publisherOptions *redis.UniversalOptions, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{}) RedisBambooHeartbeatPublisher {
+func NewRedisBambooHeartbeatPublisher(publisherOptions *redis.UniversalOptions) BambooHeartbeatPublisher {
 	heartbeatResp := WorkerResponse{Type: ResponseType_HEARTBEAT}
 	heartbeatRespBytes, err := proto.Marshal(&heartbeatResp)
 	if err != nil {
@@ -34,24 +26,20 @@ func NewRedisBambooHeartbeatPublisher(publisherOptions *redis.UniversalOptions, 
 	heartbeatRespStr := base64.StdEncoding.EncodeToString(heartbeatRespBytes)
 
 	return &redisBambooHeartbeatPublisher{
-		publisherOptions:     publisherOptions,
-		resultChannel:        resultChannel,
-		heartbeatIntervalSec: heartbeatIntervalSec,
-		done:                 done,
-		aborted:              aborted,
-		heartbeatRespStr:     heartbeatRespStr,
+		publisherOptions: publisherOptions,
+		heartbeatRespStr: heartbeatRespStr,
 	}
 }
 
-func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context) {
+func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{}) {
 	logger := internal.FromContext(ctx)
 
-	if h.heartbeatIntervalSec == 0 {
+	if heartbeatIntervalSec == 0 {
 		logger.Debug("heartbeat is disabled because heartbeatIntervalSec is zero.")
 		return
 	}
 
-	heartbeatInterval := time.Duration(h.heartbeatIntervalSec) * time.Second
+	heartbeatInterval := time.Duration(heartbeatIntervalSec) * time.Second
 	pulse := time.NewTicker(heartbeatInterval)
 
 	go func() {
@@ -65,10 +53,10 @@ func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context) {
 			case <-ctx.Done():
 				logger.Debug("ctx.Done(). stop SendingPulse...")
 				return
-			case <-h.done:
+			case <-done:
 				logger.Debug("done. stop SendingPulse...")
 				return
-			case <-h.aborted:
+			case <-aborted:
 				logger.Debug("aborted. stop SendingPulse...")
 				return
 			case <-pulse.C:
@@ -76,7 +64,7 @@ func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context) {
 				publisher := redis.NewUniversalClient(h.publisherOptions)
 				defer publisher.Close()
 
-				if _, err := publisher.Publish(ctx, h.resultChannel, h.heartbeatRespStr).Result(); err != nil {
+				if _, err := publisher.Publish(ctx, resultChannel, h.heartbeatRespStr).Result(); err != nil {
 					logger.Errorf("err: %w", err)
 				}
 			}

@@ -21,8 +21,10 @@ run-calc-app:
 	go run . && \
 	popd
 
+.PHONY: lint
 docker-up:
 	@docker compose -f ./docker-compose.yml up -d
 
+.PHONY: lint
 docker-down:
 	@docker compose -f ./docker-compose.yml down
