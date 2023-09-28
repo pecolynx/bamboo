@@ -64,13 +64,15 @@ jobs:
           for file in ${{ steps.changed-files-specific.outputs.all_changed_files }}; do
             echo "$file was changed"
           done
-      - name: Test
+      - name: Init
         if: steps.changed-files-specific.outputs.any_changed == 'true'
-        working-directory: ${{ matrix.workdir }}
         run: |
           make work-init
           make work-use
-          go test -coverprofile="coverage.txt" -covermode=atomic ./... -count=1
+      - name: Test
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        working-directory: ${{ matrix.workdir }}
+        run: go test -coverprofile="coverage.txt" -covermode=atomic ./... -count=1
       - name: Coverage
         uses: codecov/codecov-action@v3
         with:
