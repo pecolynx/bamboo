@@ -15,7 +15,13 @@ message WorkerParameter {
 
 enum ResponseType {
   HEARTBEAT = 0;
-  DATA = 1;
+  //
+  ACCEPTED = 1;
+  //
+  DATA = 2;
+  ABORTED = 3;
+  INVALID_ARGUMENT = 4;
+  INTERNAL_ERROR = 5;
 }
 
 message WorkerResponse {

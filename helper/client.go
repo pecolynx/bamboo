@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/pecolynx/bamboo"
+	"github.com/pecolynx/bamboo/internal"
 )
 
 type BambooPrameter interface {
@@ -62,6 +63,8 @@ func (c *StandardClient) newRedisChannelString() (string, error) {
 }
 
 func (c *StandardClient) Call(ctx context.Context, clientName string, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, param []byte) ([]byte, error) {
+	logger := internal.FromContext(ctx)
+
 	redisChannel, err := c.newRedisChannelString()
 	if err != nil {
 		return nil, err
@@ -74,6 +77,10 @@ func (c *StandardClient) Call(ctx context.Context, clientName string, heartbeatI
 
 	ch := make(chan bamboo.ByteArreayResult)
 	go func() {
+		defer func() {
+			logger.Debug("END")
+		}()
+
 		resultBytes, err := client.Subscribe(ctx, redisChannel, heartbeatIntervalSec, jobTimeoutSec)
 		if err != nil {
 			ch <- bamboo.ByteArreayResult{Value: nil, Error: err}

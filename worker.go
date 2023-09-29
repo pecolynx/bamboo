@@ -80,30 +80,12 @@ func (w *bambooWorker) Run(ctx context.Context) error {
 			case worker := <-w.workerPool: // wait for available worker
 				logger.Debug("worker is ready")
 
-				w.consumeRequestAndDispatchJob(ctx, consumer, worker)
-
-				// req, err := consumer.Consume(ctx)
-				// if errors.Is(err, ErrContextCanceled) {
-				// 	return nil
-				// } else if err != nil {
-				// 	worker <- internal.NewEmptyJob()
-				// 	return err
-				// }
-
-				// done := make(chan interface{})
-				// aborted := make(chan interface{})
-
-				// reqCtx := w.logConfigFunc(ctx, req.Headers)
-
-				// if req.HeartbeatIntervalSec != 0 {
-				// 	w.heartbeatPublisher.Run(reqCtx, req.ResultChannel, int(req.HeartbeatIntervalSec), done, aborted)
-				// }
-
-				// var carrier propagation.MapCarrier = req.Carrier
-				// job := NewWorkerJob(reqCtx, carrier, w.workerFunc, req.Headers, req.Data, w.resultPublisher, req.ResultChannel, done, aborted, w.logConfigFunc)
-
-				// logger.Debug("dispatch job to worker")
-				// worker <- job
+				if err := w.consumeRequestAndDispatchJob(ctx, consumer, worker); err != nil {
+					if errors.Is(err, ErrContextCanceled) {
+						return nil
+					}
+					return err
+				}
 			}
 		}
 	}
@@ -128,7 +110,7 @@ func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consume
 
 	req, err := consumer.Consume(ctx)
 	if errors.Is(err, ErrContextCanceled) {
-		return nil
+		return err
 	} else if err != nil {
 		worker <- internal.NewEmptyJob()
 		return err

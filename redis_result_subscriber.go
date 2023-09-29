@@ -73,6 +73,9 @@ func (s *redisBambooResultSubscriber) Subscribe(ctx context.Context, resultChann
 			case <-done:
 				logger.Debug("done. stop receiving message...")
 				return
+			// case <-timedout:
+			// 	logger.Debug("timedout. stop receiving message...")
+			// 	return
 			default:
 				msg, err := pubsub.ReceiveMessage(ctx)
 				if err != nil {
@@ -91,9 +94,18 @@ func (s *redisBambooResultSubscriber) Subscribe(ctx context.Context, resultChann
 					c1 <- ByteArreayResult{Value: nil, Error: err}
 					return
 				}
-				if resp.Type == pb.ResponseType_HEARTBEAT {
+				switch resp.Type {
+				case pb.ResponseType_HEARTBEAT:
 					heartbeat <- time.Now().Unix()
-				} else {
+				// case pb.ResponseType_ACCEPTED:
+				// 	heartbeat <- time.Now().Unix()
+				// case pb.ResponseType_ABORTED:
+				// 	heartbeat <- time.Now().Unix()
+				// case pb.ResponseType_INVALID_ARGUMENT:
+				// 	heartbeat <- time.Now().Unix()
+				// case pb.ResponseType_INTERNAL_ERROR:
+				// 	heartbeat <- time.Now().Unix()
+				case pb.ResponseType_DATA:
 					c1 <- ByteArreayResult{Value: resp.Data, Error: nil}
 				}
 			}
