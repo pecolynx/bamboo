@@ -3,6 +3,7 @@ package bamboo
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type kafkaBambooRequestConsumer struct {
@@ -27,7 +29,7 @@ func NewKafkaBambooRequestConsumer(consumerOptions kafka.ReaderConfig, requestWa
 }
 
 func (c *kafkaBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerParameter, error) {
-	logger := internal.FromContext(ctx)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerKey)
 
 	for {
 		select {
@@ -47,7 +49,7 @@ func (c *kafkaBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerPar
 
 			req := pb.WorkerParameter{}
 			if err := proto.Unmarshal(m.Value, &req); err != nil {
-				logger.Warnf("invalid parameter. failed to proto.Unmarshal. err: %w", err)
+				logger.WarnContext(ctx, "invalid parameter. failed to proto.Unmarshal.", slog.Any("err", err))
 				continue
 			}
 			return &req, nil

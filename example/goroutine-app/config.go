@@ -32,8 +32,8 @@ type Config struct {
 //go:embed debug.yml
 var config embed.FS
 
-func LoadConfig(env string) (*Config, error) {
-	filename := env + ".yml"
+func LoadConfig(appMode string) (*Config, error) {
+	filename := appMode + ".yml"
 	confContent, err := config.ReadFile(filename)
 	if err != nil {
 		return nil, internal.Errorf("config.ReadFile. filename: %s, err: %w", filename, err)

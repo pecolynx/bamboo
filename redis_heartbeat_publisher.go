@@ -3,6 +3,7 @@ package bamboo
 import (
 	"context"
 	"encoding/base64"
+	"log/slog"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type redisBambooHeartbeatPublisher struct {
@@ -43,10 +45,10 @@ func (p *redisBambooHeartbeatPublisher) Ping(ctx context.Context) error {
 }
 
 func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{}) error {
-	logger := internal.FromContext(ctx)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooHeartbeatPublisherLoggerKey)
 
 	if heartbeatIntervalSec == 0 {
-		logger.Debug("heartbeat is disabled because heartbeatIntervalSec is zero.")
+		logger.DebugContext(ctx, "heartbeat is disabled because heartbeatIntervalSec is zero.")
 		return nil
 	}
 
@@ -55,28 +57,28 @@ func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel s
 
 	go func() {
 		defer func() {
-			logger.Debug("stop heartbeat loop")
+			logger.DebugContext(ctx, "stop heartbeat loop")
 			pulse.Stop()
 		}()
 
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Debug("ctx.Done(). stop SendingPulse...")
+				logger.DebugContext(ctx, "ctx.Done(). stop SendingPulse...")
 				return
 			case <-done:
-				logger.Debug("done. stop SendingPulse...")
+				logger.DebugContext(ctx, "done. stop SendingPulse...")
 				return
 			case <-aborted:
-				logger.Debug("aborted. stop SendingPulse...")
+				logger.DebugContext(ctx, "aborted. stop SendingPulse...")
 				return
 			case <-pulse.C:
-				logger.Debug("pulse")
+				logger.DebugContext(ctx, "pulse")
 				publisher := redis.NewUniversalClient(h.publisherOptions)
 				defer publisher.Close()
 
 				if _, err := publisher.Publish(ctx, resultChannel, h.heartbeatRespStr).Result(); err != nil {
-					logger.Errorf("err: %w", err)
+					logger.ErrorContext(ctx, "publisher.Publish", slog.Any("err", err))
 				}
 			}
 		}

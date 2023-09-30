@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -15,9 +17,11 @@ import (
 	"github.com/pecolynx/bamboo"
 	"github.com/pecolynx/bamboo/helper"
 	"github.com/pecolynx/bamboo/internal"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/worker-redis-redis")
+var appName string
 
 func main() {
 	ctx := context.Background()
@@ -26,24 +30,40 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
+	appName = cfg.App.Name
+
+	debugHandler := &sloghelper.BambooHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})}
+
+	sloghelper.BambooLoggers[cfg.App.Name] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerKey] = slog.New(debugHandler)
+
+	logger := sloghelper.FromContext(ctx, appName)
+	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, cfg.App.Name)
+
 	factory := helper.NewBambooFactory()
 	worker, err := factory.CreateBambooWorker(cfg.Worker, workerFunc)
 	if err != nil {
 		panic(err)
 	}
 
-	logger := internal.FromContext(ctx)
-	logger.Info("Started worker-redis-redis")
+	logger.InfoContext(ctx, fmt.Sprintf("Started %s", appName))
+
 	result := run(ctx, worker)
 
 	time.Sleep(time.Second)
 
-	logrus.Info("exited")
+	logger.InfoContext(ctx, "exited")
 	os.Exit(result)
 }
 
 func run(ctx context.Context, worker bamboo.BambooWorker) int {
 	eg, ctx := errgroup.WithContext(ctx)
+	logger := sloghelper.FromContext(ctx, appName)
 
 	eg.Go(func() error {
 		return worker.Run(ctx)
@@ -57,8 +77,13 @@ func run(ctx context.Context, worker bamboo.BambooWorker) int {
 	})
 
 	if err := eg.Wait(); err != nil {
-		logrus.Error(err)
-		return 1
+		if errors.Is(err, context.Canceled) {
+			logger.InfoContext(ctx, "", slog.Any("err", err))
+			return 0
+		} else {
+			logger.ErrorContext(ctx, "", slog.Any("err", err))
+			return 1
+		}
 	}
 	return 0
 }
@@ -86,18 +111,18 @@ func initialize(ctx context.Context, mode string) (*Config, *sdktrace.TracerProv
 }
 
 func workerFunc(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
-	logger := internal.FromContext(ctx)
+	logger := sloghelper.FromContext(ctx, appName)
 
 	req := RedisRedisParameter{}
 	if err := proto.Unmarshal(reqBytes, &req); err != nil {
-		logger.Errorf("proto.Unmarshal %+v", err)
 		return nil, internal.Errorf("proto.Unmarshal. err: %w", err)
 	}
 
 	time.Sleep(time.Second * 5)
 
 	answer := req.X * req.Y
-	logger.Infof("answer: %d", answer)
+	logger.InfoContext(ctx, fmt.Sprintf("answer: %d", answer))
+
 	resp := RedisRedisResponse{Value: answer}
 	respBytes, err := proto.Marshal(&resp)
 	if err != nil {

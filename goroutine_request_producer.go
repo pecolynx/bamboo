@@ -40,6 +40,7 @@ func (p *goroutineBambooRequestProducer) Produce(ctx context.Context, resultChan
 		JobTimeoutSec:        int32(jobTimeoutSec),
 		Data:                 data,
 	}
+
 	reqBytes, err := proto.Marshal(&req)
 	if err != nil {
 		return internal.Errorf("proto.Marshal. err: %w", err)

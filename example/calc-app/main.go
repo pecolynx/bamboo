@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/google/uuid"
@@ -12,9 +14,11 @@ import (
 
 	"github.com/pecolynx/bamboo/helper"
 	"github.com/pecolynx/bamboo/internal"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/calc-app")
+var appName string
 
 type expr struct {
 	app *helper.StandardClient
@@ -32,15 +36,15 @@ func (e *expr) getError() error {
 }
 
 func (e *expr) workerRedisRedis(ctx context.Context, x, y int) int {
-	logger := internal.FromContext(ctx)
+	logger := sloghelper.FromContext(ctx, appName)
 
-	request_id, _ := ctx.Value("request_id").(string)
+	request_id, _ := ctx.Value(sloghelper.RequestIDKey).(string)
 	headers := map[string]string{
-		"request_id": request_id,
+		sloghelper.RequestIDKey: request_id,
 	}
 
 	if err := e.getError(); err != nil {
-		logger.Info("%+v", err)
+		logger.InfoContext(ctx, "", slog.Any("err", err))
 		return 0
 	}
 
@@ -79,6 +83,11 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
+	appName = cfg.App.Name
+
+	logger := sloghelper.FromContext(ctx, appName)
+	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, cfg.App.Name)
+
 	factory := helper.NewBambooFactory()
 	clients := map[string]helper.WorkerClient{}
 	for k, v := range cfg.Workers {
@@ -92,8 +101,7 @@ func main() {
 
 	app := helper.StandardClient{Clients: clients}
 
-	logger := internal.FromContext(ctx)
-	logger.Info("Started calc-app")
+	logger.InfoContext(ctx, fmt.Sprintf("Started %s", appName))
 
 	wg := sync.WaitGroup{}
 	for i := 0; i < 2; i++ {
@@ -101,7 +109,7 @@ func main() {
 		go func() {
 			defer wg.Done()
 
-			spanCtx, span := tracer.Start(ctx, "calc-app")
+			spanCtx, span := tracer.Start(ctx, appName)
 			defer span.End()
 
 			requestID, err := uuid.NewRandom()
@@ -109,9 +117,7 @@ func main() {
 				panic(err)
 			}
 
-			logCtx := internal.With(spanCtx, internal.Str("request_id", requestID.String()))
-			logCtx = context.WithValue(logCtx, "request_id", requestID.String())
-			logger := internal.FromContext(logCtx)
+			logCtx := context.WithValue(spanCtx, sloghelper.RequestIDKey, requestID.String())
 
 			expr := expr{app: &app}
 
@@ -119,9 +125,9 @@ func main() {
 			// b := expr.workerRedisRedis(logCtx, a, 7)
 
 			if expr.getError() != nil {
-				logger.Errorf("failed to run (3 * 5 * 7). err: %v", expr.getError())
+				logger.ErrorContext(logCtx, "failed to run (3 * 5 * 7)", expr.getError())
 			} else {
-				logger.Infof("3 * 5 * 7= %d", a)
+				logger.InfoContext(logCtx, fmt.Sprintf("3 * 5 * 7 = %d", a))
 			}
 
 			// if expr.getError() != nil {
@@ -134,14 +140,14 @@ func main() {
 	wg.Wait()
 }
 
-func initialize(ctx context.Context, env string) (*Config, *sdktrace.TracerProvider) {
-	cfg, err := LoadConfig(env)
+func initialize(ctx context.Context, appMode string) (*Config, *sdktrace.TracerProvider) {
+	cfg, err := LoadConfig(appMode)
 	if err != nil {
 		panic(err)
 	}
 
 	// init log
-	if err := helper.InitLog(env, cfg.Log); err != nil {
+	if err := helper.InitLog(cfg.App.Name, cfg.Log); err != nil {
 		panic(err)
 	}
 

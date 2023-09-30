@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -18,9 +19,11 @@ import (
 	"github.com/pecolynx/bamboo"
 	"github.com/pecolynx/bamboo/helper"
 	"github.com/pecolynx/bamboo/internal"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/goroutine-app")
+var appName string
 
 type expr struct {
 	app *helper.StandardClient
@@ -38,15 +41,15 @@ func (e *expr) getError() error {
 }
 
 func (e *expr) workerGoroutine(ctx context.Context, x, y int) int {
-	logger := internal.FromContext(ctx)
+	logger := sloghelper.FromContext(ctx, appName)
 
-	request_id, _ := ctx.Value("request_id").(string)
+	request_id, _ := ctx.Value(sloghelper.RequestIDKey).(string)
 	headers := map[string]string{
-		"request_id": request_id,
+		sloghelper.RequestIDKey: request_id,
 	}
 
 	if err := e.getError(); err != nil {
-		logger.Info("%+v", err)
+		logger.InfoContext(ctx, "", slog.Any("err", err))
 		return 0
 	}
 
@@ -85,6 +88,11 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
+	appName = cfg.App.Name
+
+	logger := sloghelper.FromContext(ctx, appName)
+	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, cfg.App.Name)
+
 	factory := helper.NewBambooFactory()
 	worker, err := factory.CreateBambooWorker(cfg.Worker, workerFunc)
 	if err != nil {
@@ -103,25 +111,25 @@ func main() {
 
 	app := helper.StandardClient{Clients: clients}
 
-	logger := internal.FromContext(ctx)
-	logger.Info("Started goroutine-app")
+	logger.InfoContext(ctx, fmt.Sprintf("Started %s", appName))
 
 	result := run(ctx, worker, app)
 	time.Sleep(time.Second)
 
-	logrus.Info("exited")
+	logger.InfoContext(ctx, "exited")
 	os.Exit(result)
 }
 
 func run(ctx context.Context, worker bamboo.BambooWorker, app helper.StandardClient) int {
 	ctx, cancel := context.WithCancel(ctx)
 	eg, ctx := errgroup.WithContext(ctx)
+	logger := sloghelper.FromContext(ctx, appName)
 
 	eg.Go(func() error {
 		done := make(chan interface{})
 
 		go func() {
-			spanCtx, span := tracer.Start(ctx, "calc-app")
+			spanCtx, span := tracer.Start(ctx, appName)
 			defer span.End()
 
 			requestID, err := uuid.NewRandom()
@@ -129,9 +137,7 @@ func run(ctx context.Context, worker bamboo.BambooWorker, app helper.StandardCli
 				panic(err)
 			}
 
-			logCtx := internal.With(spanCtx, internal.Str("request_id", requestID.String()))
-			logCtx = context.WithValue(logCtx, "request_id", requestID.String())
-			logger := internal.FromContext(logCtx)
+			logCtx := context.WithValue(spanCtx, sloghelper.RequestIDKey, requestID.String())
 
 			expr := expr{app: &app}
 
@@ -139,9 +145,9 @@ func run(ctx context.Context, worker bamboo.BambooWorker, app helper.StandardCli
 			// b := expr.workerGoroutine(logCtx, a, 7)
 
 			if expr.getError() != nil {
-				logger.Errorf("failed to run (3 * 5 * 7). err: %v", expr.getError())
+				logger.ErrorContext(logCtx, "failed to run (3 * 5 * 7)", expr.getError())
 			} else {
-				logger.Infof("3 * 5 * 7= %d", a)
+				logger.InfoContext(logCtx, fmt.Sprintf("3 * 5 * 7 = %d", a))
 			}
 
 			// if expr.getError() != nil {
@@ -176,24 +182,24 @@ func run(ctx context.Context, worker bamboo.BambooWorker, app helper.StandardCli
 
 	if err := eg.Wait(); err != nil {
 		if errors.Is(err, context.Canceled) {
-			logrus.Info(err)
+			logger.InfoContext(ctx, "", slog.Any("err", err))
 			return 0
 		} else {
-			logrus.Error(err)
+			logger.ErrorContext(ctx, "", slog.Any("err", err))
 			return 1
 		}
 	}
 	return 0
 }
 
-func initialize(ctx context.Context, env string) (*Config, *sdktrace.TracerProvider) {
-	cfg, err := LoadConfig(env)
+func initialize(ctx context.Context, appMode string) (*Config, *sdktrace.TracerProvider) {
+	cfg, err := LoadConfig(appMode)
 	if err != nil {
 		panic(err)
 	}
 
 	// init log
-	if err := helper.InitLog(env, cfg.Log); err != nil {
+	if err := helper.InitLog(cfg.App.Name, cfg.Log); err != nil {
 		panic(err)
 	}
 
@@ -209,18 +215,18 @@ func initialize(ctx context.Context, env string) (*Config, *sdktrace.TracerProvi
 }
 
 func workerFunc(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
-	logger := internal.FromContext(ctx)
+	logger := sloghelper.FromContext(ctx, appName)
 
 	req := GoroutineAppParameter{}
 	if err := proto.Unmarshal(reqBytes, &req); err != nil {
-		logger.Errorf("proto.Unmarshal %+v", err)
 		return nil, internal.Errorf("proto.Unmarshal. err: %w", err)
 	}
 
 	time.Sleep(time.Second * 1)
 
 	answer := req.X * req.Y
-	logger.Infof("answer: %d", answer)
+	logger.InfoContext(ctx, fmt.Sprintf("answer: %d", answer))
+
 	resp := GoroutineAppResponse{Value: answer}
 	respBytes, err := proto.Marshal(&resp)
 	if err != nil {

@@ -6,8 +6,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type goroutineBambooHeartbeatPublisher struct {
@@ -33,7 +33,8 @@ func (p *goroutineBambooHeartbeatPublisher) Ping(ctx context.Context) error {
 }
 
 func (h *goroutineBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{}) error {
-	logger := internal.FromContext(ctx)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooHeartbeatPublisherLoggerKey)
+	ctx = context.WithValue(ctx, "logger_name", sloghelper.BambooHeartbeatPublisherLoggerKey)
 
 	pubsub, err := h.pubsubMap.GetChannel(resultChannel)
 	if err != nil {
@@ -41,7 +42,7 @@ func (h *goroutineBambooHeartbeatPublisher) Run(ctx context.Context, resultChann
 	}
 
 	if heartbeatIntervalSec == 0 {
-		logger.Debug("heartbeat is disabled because heartbeatIntervalSec is zero.")
+		logger.DebugContext(ctx, "heartbeat is disabled because heartbeatIntervalSec is zero.")
 		return nil
 	}
 
@@ -50,23 +51,23 @@ func (h *goroutineBambooHeartbeatPublisher) Run(ctx context.Context, resultChann
 
 	go func() {
 		defer func() {
-			logger.Debug("stop heartbeat loop")
+			logger.DebugContext(ctx, "stop heartbeat loop")
 			pulse.Stop()
 		}()
 
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Debug("ctx.Done(). stop heartbeat loop")
+				logger.DebugContext(ctx, "ctx.Done(). stop heartbeat loop")
 				return
 			case <-done:
-				logger.Debug("done. stop heartbeat loop")
+				logger.DebugContext(ctx, "done. stop heartbeat loop")
 				return
 			case <-aborted:
-				logger.Debug("aborted. stop heartbeat loop")
+				logger.DebugContext(ctx, "aborted. stop heartbeat loop")
 				return
 			case <-pulse.C:
-				logger.Debug("pulse")
+				logger.DebugContext(ctx, "pulse")
 				pubsub <- h.heartbeatRespBytes
 			}
 		}

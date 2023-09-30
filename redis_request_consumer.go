@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type redisBambooRequestConsumer struct {
@@ -28,7 +30,7 @@ func NewRedisBambooRequestConsumer(consumerOptions *redis.UniversalOptions, cons
 }
 
 func (c *redisBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerParameter, error) {
-	logger := internal.FromContext(ctx)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerKey)
 
 	for {
 		select {
@@ -51,13 +53,13 @@ func (c *redisBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerPar
 			reqStr := m[1]
 			reqBytes, err := base64.StdEncoding.DecodeString(reqStr)
 			if err != nil {
-				logger.Warnf("invalid parameter. failed to base64.StdEncoding.DecodeString. err: %w", err)
+				logger.WarnContext(ctx, "invalid parameter. failed to base64.StdEncoding.DecodeString.", slog.Any("err", err))
 				continue
 			}
 
 			req := pb.WorkerParameter{}
 			if err := proto.Unmarshal(reqBytes, &req); err != nil {
-				logger.Warnf("invalid parameter. failed to proto.Unmarshal. err: %w", err)
+				logger.WarnContext(ctx, "invalid parameter. failed to proto.Unmarshal.", slog.Any("err", err))
 				continue
 			}
 

@@ -29,6 +29,8 @@ func NewRedisBambooRequestProducer(ctx context.Context, workerName string, produ
 }
 
 func (p *redisBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, data []byte) error {
+	// logger := sloghelper.FromContext(ctx)
+
 	carrier := propagation.MapCarrier{}
 
 	spanCtx, span := tracer.Start(ctx, p.workerName)
@@ -44,6 +46,7 @@ func (p *redisBambooRequestProducer) Produce(ctx context.Context, resultChannel 
 		JobTimeoutSec:        int32(jobTimeoutSec),
 		Data:                 data,
 	}
+
 	reqBytes, err := proto.Marshal(&req)
 	if err != nil {
 		return internal.Errorf("proto.Marshal. err: %w", err)

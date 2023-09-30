@@ -2,12 +2,13 @@ package bamboo
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type goroutineBambooResultSubscriber struct {
@@ -27,12 +28,13 @@ func (s *goroutineBambooResultSubscriber) Ping(ctx context.Context) error {
 }
 
 func (s *goroutineBambooResultSubscriber) Subscribe(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int) ([]byte, error) {
-	logger := internal.FromContext(ctx)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooResultSubscriberLoggerKey)
+	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooResultSubscriberLoggerKey)
 
 	pubsub := s.pubsubMap.CreateChannel(resultChannel)
 	defer func() {
 		if err := s.pubsubMap.CloseSubscribeChannel(resultChannel); err != nil {
-			logger.Errorf(".pubsubMap.CloseSubscribeChannel. err: %v", err)
+			logger.ErrorContext(ctx, "pubsubMap.CloseSubscribeChannel", slog.Any("err", err))
 		}
 	}()
 
@@ -48,7 +50,7 @@ func (s *goroutineBambooResultSubscriber) Subscribe(ctx context.Context, resultC
 
 	go func() {
 		defer func() {
-			logger.Debug("stop receiving loop")
+			logger.DebugContext(ctx, "stop receiving loop")
 		}()
 
 		defer close(c1)
@@ -56,7 +58,7 @@ func (s *goroutineBambooResultSubscriber) Subscribe(ctx context.Context, resultC
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Debug("ctx.Done() stop receiving loop")
+				logger.DebugContext(ctx, "ctx.Done() stop receiving loop")
 				return
 			case respBytes := <-pubsub:
 				resp := pb.WorkerResponse{}
@@ -87,7 +89,7 @@ func (s *goroutineBambooResultSubscriber) Subscribe(ctx context.Context, resultC
 		go func() {
 			ticker := time.NewTicker(time.Duration(heartbeatIntervalSec) * time.Second)
 			defer func() {
-				logger.Debug("stop heartbeat loop")
+				logger.DebugContext(ctx, "stop heartbeat loop")
 				ticker.Stop()
 			}()
 
@@ -96,19 +98,19 @@ func (s *goroutineBambooResultSubscriber) Subscribe(ctx context.Context, resultC
 			for {
 				select {
 				case <-done:
-					logger.Debug("done")
+					logger.DebugContext(ctx, "done")
 					return
 				case h := <-heartbeat:
 					if h != 0 {
 						last = h
-						logger.Debugf("heartbeat, %d", h)
+						logger.DebugContext(ctx, "heartbeat", slog.Int64("time", h))
 					}
 				case <-timedout:
-					logger.Debug("timedout")
+					logger.DebugContext(ctx, "timedout")
 					return
 				case <-ticker.C:
 					if time.Now().Unix()-last > int64(heartbeatIntervalSec)*2 {
-						logger.Debug("heartbeat couldn't be received")
+						logger.DebugContext(ctx, "heartbeat couldn't be received")
 						aborted <- struct{}{}
 					}
 				}
@@ -130,7 +132,7 @@ func (s *goroutineBambooResultSubscriber) Subscribe(ctx context.Context, resultC
 }
 
 func (s *goroutineBambooResultSubscriber) startTimer(ctx context.Context, timeoutTime time.Duration) <-chan interface{} {
-	logger := internal.FromContext(ctx)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooResultSubscriberLoggerKey)
 	if timeoutTime != 0 {
 		timedout := make(chan interface{})
 		time.AfterFunc(timeoutTime, func() {
@@ -139,7 +141,7 @@ func (s *goroutineBambooResultSubscriber) startTimer(ctx context.Context, timeou
 		return timedout
 	}
 
-	logger.Debug("timeout time is infinite")
+	logger.DebugContext(ctx, "timeout time is infinite")
 	return nil
 
 }

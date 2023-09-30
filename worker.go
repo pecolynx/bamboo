@@ -3,12 +3,14 @@ package bamboo
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"go.opentelemetry.io/otel/propagation"
 
 	"github.com/pecolynx/bamboo/internal"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type bambooWorker struct {
@@ -57,7 +59,7 @@ func (w *bambooWorker) ping(ctx context.Context) error {
 }
 
 func (w *bambooWorker) Run(ctx context.Context) error {
-	logger := internal.FromContext(ctx)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerKey)
 
 	workers := make([]internal.Worker, w.numWorkers)
 	for i := 0; i < w.numWorkers; i++ {
@@ -91,7 +93,7 @@ func (w *bambooWorker) Run(ctx context.Context) error {
 	backOff := backoff.WithContext(w.newBackOff(), ctx)
 
 	notify := func(err error, d time.Duration) {
-		logger.Errorf("redis reading error. err: %v", err)
+		logger.ErrorContext(ctx, "redis reading error", slog.Any("err", err))
 	}
 
 	err := backoff.RetryNotify(operation, backOff, notify)
@@ -103,8 +105,8 @@ func (w *bambooWorker) Run(ctx context.Context) error {
 }
 
 func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consumer BambooRequestConsumer, worker chan<- internal.Job) error {
-	logger := internal.FromContext(ctx)
-	logger.Debug("worker is ready")
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerKey)
+	logger.DebugContext(ctx, "worker is ready")
 
 	req, err := consumer.Consume(ctx)
 	if errors.Is(err, ErrContextCanceled) {
@@ -118,6 +120,7 @@ func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consume
 	aborted := make(chan interface{})
 
 	reqCtx := w.logConfigFunc(ctx, req.Headers)
+	logger.DebugContext(reqCtx, "worker is ready")
 
 	if req.HeartbeatIntervalSec != 0 {
 		if err := w.heartbeatPublisher.Run(reqCtx, req.ResultChannel, int(req.HeartbeatIntervalSec), done, aborted); err != nil {
@@ -128,7 +131,7 @@ func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consume
 	var carrier propagation.MapCarrier = req.Carrier
 	job := NewWorkerJob(reqCtx, carrier, w.workerFunc, req.Headers, req.Data, w.resultPublisher, req.ResultChannel, done, aborted, w.logConfigFunc)
 
-	logger.Debug("dispatch job to worker")
+	logger.DebugContext(ctx, "dispatch job to worker")
 	worker <- job
 
 	return nil

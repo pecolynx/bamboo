@@ -2,11 +2,12 @@ package bamboo
 
 import (
 	"context"
+	"log/slog"
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type goroutineBambooRequestConsumer struct {
@@ -20,7 +21,7 @@ func NewGoroutineBambooRequestConsumer(queue chan []byte) BambooRequestConsumer 
 }
 
 func (c *goroutineBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerParameter, error) {
-	logger := internal.FromContext(ctx)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerKey)
 
 	for {
 		select {
@@ -29,7 +30,7 @@ func (c *goroutineBambooRequestConsumer) Consume(ctx context.Context) (*pb.Worke
 		case reqBytes := <-c.queue:
 			req := pb.WorkerParameter{}
 			if err := proto.Unmarshal(reqBytes, &req); err != nil {
-				logger.Warnf("invalid parameter. failed to proto.Unmarshal. err: %w", err)
+				logger.WarnContext(ctx, "invalid parameter. failed to proto.Unmarshal.", slog.Any("err", err))
 				continue
 			}
 
