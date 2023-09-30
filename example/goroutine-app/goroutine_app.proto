@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+option go_package = "github.com/pecolynx/bamboo/example/goroutine-app/main";
+
+package proto;
+
+message GoroutineAppParameter {
+  int32   x = 1;
+  int32   y = 2;
+}
+
+message GoroutineAppResponse {
+  int32   value = 1;
+}

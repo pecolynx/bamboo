@@ -33,7 +33,7 @@ type BambooResultPublisher interface {
 
 type BambooHeartbeatPublisher interface {
 	Ping(ctx context.Context) error
-	Run(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{})
+	Run(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{}) error
 }
 
 type BambooWorker interface {

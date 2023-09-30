@@ -19,8 +19,6 @@ import (
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/worker-redis-redis")
 
-var quit = make(chan interface{})
-
 func main() {
 	ctx := context.Background()
 	appMode := "debug"
@@ -28,7 +26,8 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
-	worker, err := helper.CreateBambooWorker(cfg.Worker, workerFunc, quit)
+	factory := helper.NewBambooFactory()
+	worker, err := factory.CreateBambooWorker(cfg.Worker, workerFunc)
 	if err != nil {
 		panic(err)
 	}
@@ -44,7 +43,6 @@ func main() {
 }
 
 func run(ctx context.Context, worker bamboo.BambooWorker) int {
-	// var eg *errgroup.Group
 	eg, ctx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {

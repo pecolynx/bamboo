@@ -28,7 +28,10 @@ work-init:
 
 .PHONY: work-use
 work-use:
-	@go work use ./ example/worker-redis-redis example/calc-app
+	@go work use ./ \
+	example/worker-redis-redis \
+	example/calc-app \
+	example/goroutine-app \
 
 
 .PHONY: test-docker-up

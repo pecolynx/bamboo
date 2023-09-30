@@ -78,8 +78,6 @@ func (w *bambooWorker) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				return nil
 			case worker := <-w.workerPool: // wait for available worker
-				logger.Debug("worker is ready")
-
 				if err := w.consumeRequestAndDispatchJob(ctx, consumer, worker); err != nil {
 					if errors.Is(err, ErrContextCanceled) {
 						return nil
@@ -122,7 +120,9 @@ func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consume
 	reqCtx := w.logConfigFunc(ctx, req.Headers)
 
 	if req.HeartbeatIntervalSec != 0 {
-		w.heartbeatPublisher.Run(reqCtx, req.ResultChannel, int(req.HeartbeatIntervalSec), done, aborted)
+		if err := w.heartbeatPublisher.Run(reqCtx, req.ResultChannel, int(req.HeartbeatIntervalSec), done, aborted); err != nil {
+			return err
+		}
 	}
 
 	var carrier propagation.MapCarrier = req.Carrier

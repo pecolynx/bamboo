@@ -1,0 +1,27 @@
+---
+app:
+  name: goroutine-app
+workers:
+  worker-goroutine:
+    requestProducer:
+      type: goroutine
+      goroutine:
+        channel: goroutine-app
+    resultSubscriber:
+      type: goroutine
+      goroutine:
+worker:
+  consumer:
+    type: goroutine
+    goroutine:
+      channel: goroutine-app
+  publisher:
+    type: goroutine
+    goroutine:
+  numWorkers: 2
+trace:
+  exporter: jaeger
+  jaeger:
+    endpoint: http://localhost:14268/api/traces
+log:
+  level: debug

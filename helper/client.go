@@ -3,11 +3,11 @@ package helper
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 
 	"github.com/pecolynx/bamboo"
-	"github.com/pecolynx/bamboo/internal"
 )
 
 type BambooPrameter interface {
@@ -63,7 +63,41 @@ func (c *StandardClient) newRedisChannelString() (string, error) {
 }
 
 func (c *StandardClient) Call(ctx context.Context, clientName string, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, param []byte) ([]byte, error) {
-	logger := internal.FromContext(ctx)
+	redisChannel, err := c.newRedisChannelString()
+	if err != nil {
+		return nil, err
+	}
+
+	client, ok := c.Clients[clientName]
+	if !ok {
+		return nil, fmt.Errorf("worker client not found. client: %s", clientName)
+	}
+
+	ch := make(chan bamboo.ByteArreayResult)
+	defer close(ch)
+	go func() {
+		resultBytes, err := client.Subscribe(ctx, redisChannel, heartbeatIntervalSec, jobTimeoutSec)
+		if err != nil {
+			ch <- bamboo.ByteArreayResult{Value: nil, Error: err}
+			return
+		}
+
+		ch <- bamboo.ByteArreayResult{Value: resultBytes, Error: nil}
+	}()
+
+	if err := client.Produce(ctx, redisChannel, heartbeatIntervalSec, jobTimeoutSec, headers, param); err != nil {
+		return nil, err
+	}
+
+	result := <-ch
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return result.Value, nil
+}
+
+func (c *StandardClient) Steam(ctx context.Context, clientName string, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, param []byte) ([]byte, error) {
 
 	redisChannel, err := c.newRedisChannelString()
 	if err != nil {
@@ -76,18 +110,22 @@ func (c *StandardClient) Call(ctx context.Context, clientName string, heartbeatI
 	}
 
 	ch := make(chan bamboo.ByteArreayResult)
+	defer close(ch)
 	go func() {
-		defer func() {
-			logger.Debug("END")
-		}()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				resultBytes, err := client.Subscribe(ctx, redisChannel, heartbeatIntervalSec, jobTimeoutSec)
+				if err != nil {
+					ch <- bamboo.ByteArreayResult{Value: nil, Error: err}
+					return
+				}
 
-		resultBytes, err := client.Subscribe(ctx, redisChannel, heartbeatIntervalSec, jobTimeoutSec)
-		if err != nil {
-			ch <- bamboo.ByteArreayResult{Value: nil, Error: err}
-			return
+				ch <- bamboo.ByteArreayResult{Value: resultBytes, Error: nil}
+			}
 		}
-
-		ch <- bamboo.ByteArreayResult{Value: resultBytes, Error: nil}
 	}()
 
 	if err := client.Produce(ctx, redisChannel, heartbeatIntervalSec, jobTimeoutSec, headers, param); err != nil {

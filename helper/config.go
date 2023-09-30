@@ -8,9 +8,10 @@ type WorkerClientConfig struct {
 
 // request
 type RequestProducerConfig struct {
-	Type  string                      `yaml:"type" validate:"required"`
-	Kafka *KafkaRequestProducerConfig `yaml:"kafka"`
-	Redis *RedisRequestProducerConfig `yaml:"redis"`
+	Type      string                          `yaml:"type" validate:"required"`
+	Kafka     *KafkaRequestProducerConfig     `yaml:"kafka"`
+	Redis     *RedisRequestProducerConfig     `yaml:"redis"`
+	Goroutine *GoroutineRequestProducerConfig `yaml:"goroutine"`
 }
 
 type KafkaRequestProducerConfig struct {
@@ -22,6 +23,10 @@ type RedisRequestProducerConfig struct {
 	Addrs    []string `yaml:"addrs" validate:"required"`
 	Password string   `yaml:"password"`
 	Channel  string   `yaml:"channel" validate:"required"`
+}
+
+type GoroutineRequestProducerConfig struct {
+	Channel string `yaml:"channel" validate:"required"`
 }
 
 // result
@@ -43,9 +48,10 @@ type WorkerConfig struct {
 }
 
 type ConsumerConfig struct {
-	Type  string               `yaml:"type" validate:"required"`
-	Kafka *KafkaConsumerConfig `yaml:"kafka"`
-	Redis *RedisConsumerConfig `yaml:"redis"`
+	Type      string                   `yaml:"type" validate:"required"`
+	Kafka     *KafkaConsumerConfig     `yaml:"kafka"`
+	Redis     *RedisConsumerConfig     `yaml:"redis"`
+	Goroutine *GoroutineConsumerConfig `yaml:"goroutine"`
 }
 
 type KafkaConsumerConfig struct {
@@ -59,6 +65,10 @@ type RedisConsumerConfig struct {
 	Password              string   `yaml:"password"`
 	Channel               string   `yaml:"channel" validate:"required"`
 	RequestWaitTimeoutSec int      `yaml:"requestWaitTimeoutSec" validate:"required"`
+}
+
+type GoroutineConsumerConfig struct {
+	Channel string `yaml:"channel" validate:"required"`
 }
 
 type PublisherConfig struct {

@@ -2,19 +2,25 @@ package main
 
 import (
 	"context"
+	"errors"
+	"os"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/pecolynx/bamboo"
 	"github.com/pecolynx/bamboo/helper"
 	"github.com/pecolynx/bamboo/internal"
 )
 
-var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/calc-app")
+var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/goroutine-app")
 
 type expr struct {
 	app *helper.StandardClient
@@ -31,7 +37,7 @@ func (e *expr) getError() error {
 	return nil
 }
 
-func (e *expr) workerRedisRedis(ctx context.Context, x, y int) int {
+func (e *expr) workerGoroutine(ctx context.Context, x, y int) int {
 	logger := internal.FromContext(ctx)
 
 	request_id, _ := ctx.Value("request_id").(string)
@@ -44,22 +50,22 @@ func (e *expr) workerRedisRedis(ctx context.Context, x, y int) int {
 		return 0
 	}
 
-	p1 := RedisRedisParameter{X: int32(x), Y: int32(y)}
+	p1 := GoroutineAppParameter{X: int32(x), Y: int32(y)}
 	paramBytes, err := proto.Marshal(&p1)
 	if err != nil {
 		e.setError(internal.Errorf("proto.Marshal. err: %w", err))
 		return 0
 	}
 
-	respBytes, err := e.app.Call(ctx, "worker-redis-redis", 2, 1, headers, paramBytes)
+	respBytes, err := e.app.Call(ctx, "worker-goroutine", 0, 0, headers, paramBytes)
 	if err != nil {
-		e.setError(internal.Errorf("app.Call(worker-redis-redis). err: %w", err))
+		e.setError(internal.Errorf("app.Call(worker-goroutine). err: %w", err))
 		return 0
 	}
 
-	resp := RedisRedisResponse{}
+	resp := GoroutineAppResponse{}
 	if err := proto.Unmarshal(respBytes, &resp); err != nil {
-		e.setError(internal.Errorf("proto.Unmarshal. worker-redis-redis response is invalid. err: %w", err))
+		e.setError(internal.Errorf("proto.Unmarshal. worker-goroutine response is invalid. err: %w", err))
 		return 0
 	}
 
@@ -80,6 +86,11 @@ func main() {
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
 	factory := helper.NewBambooFactory()
+	worker, err := factory.CreateBambooWorker(cfg.Worker, workerFunc)
+	if err != nil {
+		panic(err)
+	}
+
 	clients := map[string]helper.WorkerClient{}
 	for k, v := range cfg.Workers {
 		var err error
@@ -93,14 +104,23 @@ func main() {
 	app := helper.StandardClient{Clients: clients}
 
 	logger := internal.FromContext(ctx)
-	logger.Info("Started calc-app")
+	logger.Info("Started goroutine-app")
 
-	wg := sync.WaitGroup{}
-	for i := 0; i < 2; i++ {
-		wg.Add(1)
+	result := run(ctx, worker, app)
+	time.Sleep(time.Second)
+
+	logrus.Info("exited")
+	os.Exit(result)
+}
+
+func run(ctx context.Context, worker bamboo.BambooWorker, app helper.StandardClient) int {
+	ctx, cancel := context.WithCancel(ctx)
+	eg, ctx := errgroup.WithContext(ctx)
+
+	eg.Go(func() error {
+		done := make(chan interface{})
+
 		go func() {
-			defer wg.Done()
-
 			spanCtx, span := tracer.Start(ctx, "calc-app")
 			defer span.End()
 
@@ -115,8 +135,8 @@ func main() {
 
 			expr := expr{app: &app}
 
-			a := expr.workerRedisRedis(logCtx, 3, 5)
-			// b := expr.workerRedisRedis(logCtx, a, 7)
+			a := expr.workerGoroutine(logCtx, 3, 5)
+			// b := expr.workerGoroutine(logCtx, a, 7)
 
 			if expr.getError() != nil {
 				logger.Errorf("failed to run (3 * 5 * 7). err: %v", expr.getError())
@@ -129,9 +149,41 @@ func main() {
 			// } else {
 			// 	logger.Infof("3 * 5 * 7= %d", b)
 			// }
+
+			done <- struct{}{}
+			cancel()
 		}()
+
+		select {
+		case <-ctx.Done():
+			break
+		case <-done:
+			break
+		}
+
+		return nil
+	})
+	eg.Go(func() error {
+		return worker.Run(ctx)
+	})
+	eg.Go(func() error {
+		return helper.SignalWatchProcess(ctx)
+	})
+	eg.Go(func() error {
+		<-ctx.Done()
+		return ctx.Err() // nolint:wrapcheck
+	})
+
+	if err := eg.Wait(); err != nil {
+		if errors.Is(err, context.Canceled) {
+			logrus.Info(err)
+			return 0
+		} else {
+			logrus.Error(err)
+			return 1
+		}
 	}
-	wg.Wait()
+	return 0
 }
 
 func initialize(ctx context.Context, env string) (*Config, *sdktrace.TracerProvider) {
@@ -154,4 +206,26 @@ func initialize(ctx context.Context, env string) (*Config, *sdktrace.TracerProvi
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 
 	return cfg, tp
+}
+
+func workerFunc(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
+	logger := internal.FromContext(ctx)
+
+	req := GoroutineAppParameter{}
+	if err := proto.Unmarshal(reqBytes, &req); err != nil {
+		logger.Errorf("proto.Unmarshal %+v", err)
+		return nil, internal.Errorf("proto.Unmarshal. err: %w", err)
+	}
+
+	time.Sleep(time.Second * 1)
+
+	answer := req.X * req.Y
+	logger.Infof("answer: %d", answer)
+	resp := GoroutineAppResponse{Value: answer}
+	respBytes, err := proto.Marshal(&resp)
+	if err != nil {
+		return nil, internal.Errorf("proto.Marshal. err: %w", err)
+	}
+
+	return respBytes, nil
 }

@@ -42,12 +42,12 @@ func (p *redisBambooHeartbeatPublisher) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{}) {
+func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{}) error {
 	logger := internal.FromContext(ctx)
 
 	if heartbeatIntervalSec == 0 {
 		logger.Debug("heartbeat is disabled because heartbeatIntervalSec is zero.")
-		return
+		return nil
 	}
 
 	heartbeatInterval := time.Duration(heartbeatIntervalSec) * time.Second
@@ -81,4 +81,6 @@ func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel s
 			}
 		}
 	}()
+
+	return nil
 }
