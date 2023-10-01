@@ -65,6 +65,7 @@ func (e *expr) workerGoroutine(ctx context.Context, x, y int) int {
 		e.setError(fmt.Errorf("worker client not found. name: %s", "worker-goroutine"))
 		return 0
 	}
+
 	respBytes, err := workerClient.Call(ctx, 0, 0, headers, paramBytes)
 	if err != nil {
 		e.setError(internal.Errorf("app.Call(worker-goroutine). err: %w", err))
@@ -104,19 +105,15 @@ func main() {
 		panic(err)
 	}
 
-	var workerClient bamboo.BambooWorkerClient
 	workerClients := map[string]bamboo.BambooWorkerClient{}
 	for k, v := range cfg.Workers {
-		var err error
-		workerClient, err = factory.CreateBambooWorkerClient(ctx, k, v, otel.GetTextMapPropagator())
+		workerClient, err := factory.CreateBambooWorkerClient(ctx, k, v, otel.GetTextMapPropagator())
 		if err != nil {
 			panic(err)
 		}
 		defer workerClient.Close(ctx)
 		workerClients[k] = workerClient
 	}
-
-	// app := helper.StandardClient{Clients: clients}
 
 	logger.InfoContext(ctx, fmt.Sprintf("Started %s", appName))
 
