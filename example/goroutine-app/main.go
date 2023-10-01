@@ -26,9 +26,9 @@ var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/goroutine-app")
 var appName string
 
 type expr struct {
-	app *helper.StandardClient
-	err error
-	mu  sync.Mutex
+	workerClients map[string]bamboo.BambooWorkerClient
+	err           error
+	mu            sync.Mutex
 }
 
 func (e *expr) getError() error {
@@ -60,7 +60,12 @@ func (e *expr) workerGoroutine(ctx context.Context, x, y int) int {
 		return 0
 	}
 
-	respBytes, err := e.app.Call(ctx, "worker-goroutine", 0, 0, headers, paramBytes)
+	workerClient, ok := e.workerClients["worker-goroutine"]
+	if !ok {
+		e.setError(fmt.Errorf("worker client not found. name: %s", "worker-goroutine"))
+		return 0
+	}
+	respBytes, err := workerClient.Call(ctx, 0, 0, headers, paramBytes)
 	if err != nil {
 		e.setError(internal.Errorf("app.Call(worker-goroutine). err: %w", err))
 		return 0
@@ -99,28 +104,30 @@ func main() {
 		panic(err)
 	}
 
-	clients := map[string]helper.WorkerClient{}
+	var workerClient bamboo.BambooWorkerClient
+	workerClients := map[string]bamboo.BambooWorkerClient{}
 	for k, v := range cfg.Workers {
 		var err error
-		clients[k], err = factory.CreateBambooWorkerClient(ctx, k, v, otel.GetTextMapPropagator())
+		workerClient, err = factory.CreateBambooWorkerClient(ctx, k, v, otel.GetTextMapPropagator())
 		if err != nil {
 			panic(err)
 		}
-		defer clients[k].Close(ctx)
+		defer workerClient.Close(ctx)
+		workerClients[k] = workerClient
 	}
 
-	app := helper.StandardClient{Clients: clients}
+	// app := helper.StandardClient{Clients: clients}
 
 	logger.InfoContext(ctx, fmt.Sprintf("Started %s", appName))
 
-	result := run(ctx, worker, app)
+	result := run(ctx, worker, workerClients)
 	time.Sleep(time.Second)
 
 	logger.InfoContext(ctx, "exited")
 	os.Exit(result)
 }
 
-func run(ctx context.Context, worker bamboo.BambooWorker, app helper.StandardClient) int {
+func run(ctx context.Context, worker bamboo.BambooWorker, workerClients map[string]bamboo.BambooWorkerClient) int {
 	ctx, cancel := context.WithCancel(ctx)
 	eg, ctx := errgroup.WithContext(ctx)
 	logger := sloghelper.FromContext(ctx, appName)
@@ -139,7 +146,7 @@ func run(ctx context.Context, worker bamboo.BambooWorker, app helper.StandardCli
 
 			logCtx := context.WithValue(spanCtx, sloghelper.RequestIDKey, requestID.String())
 
-			expr := expr{app: &app}
+			expr := expr{workerClients: workerClients}
 
 			a := expr.workerGoroutine(logCtx, 3, 5)
 			// b := expr.workerGoroutine(logCtx, a, 7)
