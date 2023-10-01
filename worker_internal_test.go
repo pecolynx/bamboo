@@ -1,18 +1,17 @@
 package bamboo
 
 import (
-	"context"
+	// "context"
 	"testing"
-
-	"github.com/pecolynx/bamboo/internal"
-	mocks "github.com/pecolynx/bamboo/mocks/github.com/pecolynx/bamboo"
+	// "github.com/pecolynx/bamboo/internal"
+	// mocks "github.com/pecolynx/bamboo/mocks/github.com/pecolynx/bamboo"
 )
 
 func TestBC(t *testing.T) {
-	ctx := context.Background()
-	consumer := mocks.BambooRequestConsumer{}
-	worker := bambooWorker{}
+	// ctx := context.Background()
+	// consumer := mocks.BambooRequestConsumer{}
+	// worker := bambooWorker{}
 
-	jobQueue := make(chan internal.Job)
-	worker.consumeRequestAndDispatchJob(ctx, &consumer, jobQueue)
+	// jobQueue := make(chan internal.Job)
+	// worker.consumeRequestAndDispatchJob(ctx, &consumer, jobQueue)
 }

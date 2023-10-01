@@ -5,6 +5,9 @@ gen-proto:
 	@protoc --go_out=./proto --go_opt=paths=source_relative \
         --go-grpc_out=./proto --go-grpc_opt=paths=source_relative \
         ./bamboo.proto
+	@protoc --go_out=./proto_test --go_opt=paths=source_relative \
+        --go-grpc_out=./proto_test --go-grpc_opt=paths=source_relative \
+        ./bamboo_test.proto
 
 .PHONY: gen-src
 gen-src:
