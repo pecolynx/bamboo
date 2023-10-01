@@ -13,7 +13,7 @@ import (
 )
 
 type BambooFactory interface {
-	CreateBambooWorkerClient(ctx context.Context, workerName string, cfg *WorkerClientConfig, propagator propagation.TextMapPropagator) (WorkerClient, error)
+	CreateBambooWorkerClient(ctx context.Context, workerName string, cfg *WorkerClientConfig, propagator propagation.TextMapPropagator) (bamboo.BambooWorkerClient, error)
 	CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.WorkerFunc) (bamboo.BambooWorker, error)
 }
 
@@ -27,10 +27,9 @@ func NewBambooFactory() BambooFactory {
 		queueMap:  make(map[string]chan []byte),
 		pubsubMap: bamboo.NewGoroutineBambooPubSubMap(),
 	}
-
 }
 
-func (f *bambooFactory) CreateBambooWorkerClient(ctx context.Context, workerName string, cfg *WorkerClientConfig, propagator propagation.TextMapPropagator) (WorkerClient, error) {
+func (f *bambooFactory) CreateBambooWorkerClient(ctx context.Context, workerName string, cfg *WorkerClientConfig, propagator propagation.TextMapPropagator) (bamboo.BambooWorkerClient, error) {
 	var rp bamboo.BambooRequestProducer
 	var rs bamboo.BambooResultSubscriber
 
@@ -65,7 +64,7 @@ func (f *bambooFactory) CreateBambooWorkerClient(ctx context.Context, workerName
 		return nil, internal.Errorf("invalid type of request producer: %s", cfg.RequestProducer.Type)
 	}
 
-	return NewWorkerClient(rp, rs), nil
+	return bamboo.NewBambooWorkerClient(rp, rs), nil
 }
 
 func (f *bambooFactory) CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.WorkerFunc) (bamboo.BambooWorker, error) {

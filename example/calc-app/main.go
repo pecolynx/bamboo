@@ -12,6 +12,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/pecolynx/bamboo"
 	"github.com/pecolynx/bamboo/helper"
 	"github.com/pecolynx/bamboo/internal"
 	"github.com/pecolynx/bamboo/sloghelper"
@@ -21,9 +22,9 @@ var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/calc-app")
 var appName string
 
 type expr struct {
-	app *helper.StandardClient
-	err error
-	mu  sync.Mutex
+	workerClients map[string]bamboo.BambooWorkerClient
+	err           error
+	mu            sync.Mutex
 }
 
 func (e *expr) getError() error {
@@ -55,7 +56,13 @@ func (e *expr) workerRedisRedis(ctx context.Context, x, y int) int {
 		return 0
 	}
 
-	respBytes, err := e.app.Call(ctx, "worker-redis-redis", 2, 1, headers, paramBytes)
+	workerClient, ok := e.workerClients["worker-redis-redis"]
+	if !ok {
+		e.setError(fmt.Errorf("worker client not found. name: %s", "worker-redis-redis"))
+		return 0
+	}
+
+	respBytes, err := workerClient.Call(ctx, 2, 1, headers, paramBytes)
 	if err != nil {
 		e.setError(internal.Errorf("app.Call(worker-redis-redis). err: %w", err))
 		return 0
@@ -89,17 +96,16 @@ func main() {
 	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, cfg.App.Name)
 
 	factory := helper.NewBambooFactory()
-	clients := map[string]helper.WorkerClient{}
+
+	workerClients := map[string]bamboo.BambooWorkerClient{}
 	for k, v := range cfg.Workers {
-		var err error
-		clients[k], err = factory.CreateBambooWorkerClient(ctx, k, v, otel.GetTextMapPropagator())
+		workerClient, err := factory.CreateBambooWorkerClient(ctx, k, v, otel.GetTextMapPropagator())
 		if err != nil {
 			panic(err)
 		}
-		defer clients[k].Close(ctx)
+		defer workerClient.Close(ctx)
+		workerClients[k] = workerClient
 	}
-
-	app := helper.StandardClient{Clients: clients}
 
 	logger.InfoContext(ctx, fmt.Sprintf("Started %s", appName))
 
@@ -119,7 +125,7 @@ func main() {
 
 			logCtx := context.WithValue(spanCtx, sloghelper.RequestIDKey, requestID.String())
 
-			expr := expr{app: &app}
+			expr := expr{workerClients: workerClients}
 
 			a := expr.workerRedisRedis(logCtx, 3, 5)
 			// b := expr.workerRedisRedis(logCtx, a, 7)

@@ -21,9 +21,13 @@ type BambooRequestConsumer interface {
 	Close(ctx context.Context) error
 }
 
+type SubscribeFunc func(ctx context.Context) (*pb.WorkerResponse, error)
+type CloseSubscribeConnectionFunc func(ctx context.Context) error
+
 type BambooResultSubscriber interface {
 	Ping(ctx context.Context) error
-	Subscribe(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int) ([]byte, error)
+
+	OpenSubscribeConnection(ctx context.Context, resultChannel string) (SubscribeFunc, CloseSubscribeConnectionFunc, error)
 }
 
 type BambooResultPublisher interface {
@@ -49,3 +53,8 @@ type LogConfigFunc func(ctx context.Context, headers map[string]string) context.
 var ErrTimedout = errors.New("Timedout")
 var ErrAborted = errors.New("Aborted")
 var ErrContextCanceled = errors.New("ContextCanceled")
+
+type ByteArreayResult struct {
+	Value []byte
+	Error error
+}
