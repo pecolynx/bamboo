@@ -60,6 +60,7 @@ func (w *bambooWorker) ping(ctx context.Context) error {
 
 func (w *bambooWorker) Run(ctx context.Context) error {
 	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerKey)
+	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooWorkerLoggerKey)
 
 	workers := make([]internal.Worker, w.numWorkers)
 	for i := 0; i < w.numWorkers; i++ {
@@ -120,10 +121,11 @@ func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consume
 	aborted := make(chan interface{})
 
 	reqCtx := w.logConfigFunc(ctx, req.Headers)
-	logger.DebugContext(reqCtx, "worker is ready")
+	logger.DebugContext(reqCtx, "job is received")
 
 	if req.HeartbeatIntervalSec != 0 {
 		if err := w.heartbeatPublisher.Run(reqCtx, req.ResultChannel, int(req.HeartbeatIntervalSec), done, aborted); err != nil {
+			worker <- internal.NewEmptyJob()
 			return err
 		}
 	}

@@ -53,6 +53,8 @@ func (c *bambooWorkerClient) Close(ctx context.Context) {
 
 func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, param []byte) ([]byte, error) {
 	resultChannel, err := c.newRedisChannelString()
+	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooResultSubscriberLoggerKey)
+
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +85,6 @@ func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalSec int,
 func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int) ([]byte, error) {
 
 	logger := sloghelper.FromContext(ctx, sloghelper.BambooResultSubscriberLoggerKey)
-	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooResultSubscriberLoggerKey)
 
 	heartbeat := make(chan int64)
 	defer close(heartbeat)
