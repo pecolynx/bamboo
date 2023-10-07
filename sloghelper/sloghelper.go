@@ -11,6 +11,8 @@ import (
 var (
 	BambooLoggers                     map[string]*slog.Logger
 	BambooWorkerLoggerKey             = "BambooWorker"
+	BambooWorkerClientLoggerKey       = "BambooWorkerClient"
+	BambooWorkerJobLoggerKey          = "BambooWorkerJob"
 	BambooHeartbeatPublisherLoggerKey = "BambooHeartbeatPublisher"
 	BambooRequestConsumerLoggerKey    = "BambooRequestConsumer"
 	BambooRequestProducerLoggerKey    = "BambooRequestProducer"
@@ -18,6 +20,8 @@ var (
 	BambooResultSubscriberLoggerKey   = "BambooResultSubscriber"
 	keys                              = []string{
 		BambooWorkerLoggerKey,
+		BambooWorkerClientLoggerKey,
+		BambooWorkerJobLoggerKey,
 		BambooHeartbeatPublisherLoggerKey,
 		BambooRequestConsumerLoggerKey,
 		BambooRequestProducerLoggerKey,

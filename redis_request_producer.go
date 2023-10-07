@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/protobuf/proto"
 
@@ -19,12 +20,12 @@ type redisBambooRequestProducer struct {
 	propagator      propagation.TextMapPropagator
 }
 
-func NewRedisBambooRequestProducer(ctx context.Context, workerName string, producerOptions redis.UniversalOptions, producerChannel string, propagator propagation.TextMapPropagator) BambooRequestProducer {
+func NewRedisBambooRequestProducer(ctx context.Context, workerName string, producerOptions redis.UniversalOptions, producerChannel string) BambooRequestProducer {
 	return &redisBambooRequestProducer{
 		workerName:      workerName,
 		producerOptions: producerOptions,
 		producerChannel: producerChannel,
-		propagator:      propagator,
+		propagator:      otel.GetTextMapPropagator(),
 	}
 }
 

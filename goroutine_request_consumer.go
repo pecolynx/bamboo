@@ -6,6 +6,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
 	"github.com/pecolynx/bamboo/sloghelper"
 )
@@ -22,11 +23,13 @@ func NewGoroutineBambooRequestConsumer(queue chan []byte) BambooRequestConsumer 
 
 func (c *goroutineBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerParameter, error) {
 	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerKey)
+	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooRequestConsumerLoggerKey)
+	logger.DebugContext(ctx, "start consuming loop")
 
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ErrContextCanceled
+			return nil, internal.Errorf("ctx.Done(). stop consuming loop. err: %w", ErrContextCanceled)
 		case reqBytes := <-c.queue:
 			req := pb.WorkerParameter{}
 			if err := proto.Unmarshal(reqBytes, &req); err != nil {

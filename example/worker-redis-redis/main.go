@@ -37,10 +37,14 @@ func main() {
 	})}
 
 	sloghelper.BambooLoggers[cfg.App.Name] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerClientLoggerKey] = slog.New(debugHandler)
 	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerKey] = slog.New(debugHandler)
 	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerKey] = slog.New(debugHandler)
 	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerKey] = slog.New(debugHandler)
 	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerKey] = slog.New(debugHandler)
+	sloghelper.Init(ctx)
 
 	logger := sloghelper.FromContext(ctx, appName)
 	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, cfg.App.Name)
@@ -118,7 +122,7 @@ func workerFunc(ctx context.Context, headers map[string]string, reqBytes []byte,
 		return nil, internal.Errorf("proto.Unmarshal. err: %w", err)
 	}
 
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 1)
 
 	answer := req.X * req.Y
 	logger.InfoContext(ctx, fmt.Sprintf("answer: %d", answer))

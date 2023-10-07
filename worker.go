@@ -48,11 +48,11 @@ func (w *bambooWorker) ping(ctx context.Context) error {
 	}
 
 	if err := w.resultPublisher.Ping(ctx); err != nil {
-		return internal.Errorf("publisher.Ping. err: %w", err)
+		return internal.Errorf("resultPublisher.Ping. err: %w", err)
 	}
 
 	if err := w.heartbeatPublisher.Ping(ctx); err != nil {
-		return internal.Errorf("publisher.Ping. err: %w", err)
+		return internal.Errorf("heartbeatPublisher.Ping. err: %w", err)
 	}
 
 	return nil
@@ -68,28 +68,7 @@ func (w *bambooWorker) Run(ctx context.Context) error {
 		workers[i].Start(ctx)
 	}
 
-	operation := func() error {
-		if err := w.ping(ctx); err != nil {
-			return internal.Errorf("ping. err: %w", err)
-		}
-
-		consumer := w.createRequestConsumerFunc(ctx)
-		defer consumer.Close(ctx)
-
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case worker := <-w.workerPool: // wait for available worker
-				if err := w.consumeRequestAndDispatchJob(ctx, consumer, worker); err != nil {
-					if errors.Is(err, ErrContextCanceled) {
-						return nil
-					}
-					return err
-				}
-			}
-		}
-	}
+	operation := func() error { return w.run(ctx) }
 
 	backOff := backoff.WithContext(w.newBackOff(), ctx)
 
@@ -105,28 +84,53 @@ func (w *bambooWorker) Run(ctx context.Context) error {
 	return nil
 }
 
+func (w *bambooWorker) run(ctx context.Context) error {
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerKey)
+	logger.DebugContext(ctx, "run")
+	if err := w.ping(ctx); err != nil {
+		return internal.Errorf("ping. err: %w", err)
+	}
+
+	consumer := w.createRequestConsumerFunc(ctx)
+	defer consumer.Close(ctx)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case worker := <-w.workerPool: // wait for available worker
+			if err := w.consumeRequestAndDispatchJob(ctx, consumer, worker); err != nil {
+				if errors.Is(err, ErrContextCanceled) {
+					return nil
+				}
+				return internal.Errorf("consumeRequestAndDispatchJob. err: %w", err)
+			}
+		}
+	}
+}
+
 func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consumer BambooRequestConsumer, worker chan<- internal.Job) error {
 	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerKey)
 	logger.DebugContext(ctx, "worker is ready")
 
 	req, err := consumer.Consume(ctx)
 	if errors.Is(err, ErrContextCanceled) {
-		return err
+		return internal.Errorf("consumer.Consume. err: %w", err)
 	} else if err != nil {
 		worker <- internal.NewEmptyJob()
-		return err
+		return internal.Errorf("consumer.Consume. err: %w", err)
 	}
 
 	done := make(chan interface{})
 	aborted := make(chan interface{})
 
 	reqCtx := w.logConfigFunc(ctx, req.Headers)
-	logger.DebugContext(reqCtx, "job is received")
+	logger.DebugContext(reqCtx, "request is received")
 
 	if req.HeartbeatIntervalSec != 0 {
 		if err := w.heartbeatPublisher.Run(reqCtx, req.ResultChannel, int(req.HeartbeatIntervalSec), done, aborted); err != nil {
 			worker <- internal.NewEmptyJob()
-			return err
+			return internal.Errorf("heartbeatPublisher.Run. err: %w", err)
 		}
 	}
 

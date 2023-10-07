@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 
 	"github.com/google/uuid"
@@ -62,7 +63,7 @@ func (e *expr) workerRedisRedis(ctx context.Context, x, y int) int {
 		return 0
 	}
 
-	respBytes, err := workerClient.Call(ctx, 2, 1, headers, paramBytes)
+	respBytes, err := workerClient.Call(ctx, 2, 7, headers, paramBytes)
 	if err != nil {
 		e.setError(internal.Errorf("app.Call(worker-redis-redis). err: %w", err))
 		return 0
@@ -92,6 +93,20 @@ func main() {
 
 	appName = cfg.App.Name
 
+	debugHandler := &sloghelper.BambooHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})}
+
+	sloghelper.BambooLoggers[cfg.App.Name] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerClientLoggerKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerKey] = slog.New(debugHandler)
+	sloghelper.Init(ctx)
+
 	logger := sloghelper.FromContext(ctx, appName)
 	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, cfg.App.Name)
 
@@ -99,7 +114,7 @@ func main() {
 
 	workerClients := map[string]bamboo.BambooWorkerClient{}
 	for k, v := range cfg.Workers {
-		workerClient, err := factory.CreateBambooWorkerClient(ctx, k, v, otel.GetTextMapPropagator())
+		workerClient, err := factory.CreateBambooWorkerClient(ctx, k, v)
 		if err != nil {
 			panic(err)
 		}
@@ -110,7 +125,7 @@ func main() {
 	logger.InfoContext(ctx, fmt.Sprintf("Started %s", appName))
 
 	wg := sync.WaitGroup{}
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 1; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -131,9 +146,9 @@ func main() {
 			// b := expr.workerRedisRedis(logCtx, a, 7)
 
 			if expr.getError() != nil {
-				logger.ErrorContext(logCtx, "failed to run (3 * 5 * 7)", expr.getError())
+				logger.ErrorContext(logCtx, "failed to run (3 * 5 * 7)", slog.Any("err", expr.getError()))
 			} else {
-				logger.InfoContext(logCtx, fmt.Sprintf("3 * 5 * 7 = %d", a))
+				logger.InfoContext(logCtx, fmt.Sprintf("3 * 5 = %d", a))
 			}
 
 			// if expr.getError() != nil {

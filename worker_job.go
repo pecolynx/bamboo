@@ -2,6 +2,7 @@ package bamboo
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -9,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/pecolynx/bamboo/internal"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type WorkerJob interface {
@@ -42,7 +44,11 @@ func NewWorkerJob(ctx context.Context, carrier propagation.MapCarrier, workerFun
 }
 
 func (j *workerJob) Run(ctx context.Context) error {
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerJobLoggerKey)
+	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooWorkerLoggerKey)
 	defer close(j.done)
+
+	logger.DebugContext(ctx, fmt.Sprintf("start job. resultChannel: %s", j.resultChannel))
 
 	propagator := otel.GetTextMapPropagator()
 	ctx = propagator.Extract(ctx, j.carrier)
@@ -65,6 +71,7 @@ func (j *workerJob) Run(ctx context.Context) error {
 		return internal.Errorf("workerFunc. err: %w", err)
 	}
 
+	logger.DebugContext(ctx, fmt.Sprintf("publish result. resultChannel: %s", j.resultChannel))
 	if err := j.resultPublisher.Publish(ctx, j.resultChannel, result); err != nil {
 		return internal.Errorf("publisher.Publish. err: %w", err)
 	}

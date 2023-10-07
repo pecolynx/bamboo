@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/protobuf/proto"
 
@@ -18,11 +19,11 @@ type kafkaBambooRequestProducer struct {
 	propagator  propagation.TextMapPropagator
 }
 
-func NewKafkaBambooRequestProducer(ctx context.Context, workerName string, kafkaWriter *kafka.Writer, propagator propagation.TextMapPropagator) BambooRequestProducer {
+func NewKafkaBambooRequestProducer(ctx context.Context, workerName string, kafkaWriter *kafka.Writer) BambooRequestProducer {
 	return &kafkaBambooRequestProducer{
 		workerName:  workerName,
 		kafkaWriter: kafkaWriter,
-		propagator:  propagator,
+		propagator:  otel.GetTextMapPropagator(),
 	}
 }
 

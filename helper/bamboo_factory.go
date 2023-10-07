@@ -9,11 +9,10 @@ import (
 	"github.com/pecolynx/bamboo/internal"
 	"github.com/redis/go-redis/v9"
 	"github.com/segmentio/kafka-go"
-	"go.opentelemetry.io/otel/propagation"
 )
 
 type BambooFactory interface {
-	CreateBambooWorkerClient(ctx context.Context, workerName string, cfg *WorkerClientConfig, propagator propagation.TextMapPropagator) (bamboo.BambooWorkerClient, error)
+	CreateBambooWorkerClient(ctx context.Context, workerName string, cfg *WorkerClientConfig) (bamboo.BambooWorkerClient, error)
 	CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.WorkerFunc) (bamboo.BambooWorker, error)
 }
 
@@ -29,7 +28,7 @@ func NewBambooFactory() BambooFactory {
 	}
 }
 
-func (f *bambooFactory) CreateBambooWorkerClient(ctx context.Context, workerName string, cfg *WorkerClientConfig, propagator propagation.TextMapPropagator) (bamboo.BambooWorkerClient, error) {
+func (f *bambooFactory) CreateBambooWorkerClient(ctx context.Context, workerName string, cfg *WorkerClientConfig) (bamboo.BambooWorkerClient, error) {
 	var rp bamboo.BambooRequestProducer
 	var rs bamboo.BambooResultSubscriber
 
@@ -38,17 +37,17 @@ func (f *bambooFactory) CreateBambooWorkerClient(ctx context.Context, workerName
 			Addr:     kafka.TCP(cfg.RequestProducer.Kafka.Addr),
 			Topic:    cfg.RequestProducer.Kafka.Topic,
 			Balancer: &kafka.LeastBytes{},
-		}, propagator)
+		})
 	} else if cfg.RequestProducer.Type == "redis" {
 		rp = bamboo.NewRedisBambooRequestProducer(ctx, workerName, redis.UniversalOptions{
 			Addrs: cfg.RequestProducer.Redis.Addrs,
-		}, cfg.RequestProducer.Redis.Channel, propagator)
+		}, cfg.RequestProducer.Redis.Channel)
 	} else if cfg.RequestProducer.Type == "goroutine" {
 		if _, ok := f.queueMap[cfg.RequestProducer.Goroutine.Channel]; !ok {
 			f.queueMap[cfg.RequestProducer.Goroutine.Channel] = make(chan []byte)
 		}
 		queue := f.queueMap[cfg.RequestProducer.Goroutine.Channel]
-		rp = bamboo.NewGoroutineBambooRequestProducer(ctx, workerName, queue, propagator)
+		rp = bamboo.NewGoroutineBambooRequestProducer(ctx, workerName, queue)
 	} else {
 		return nil, internal.Errorf("invalid type of request producer: %s", cfg.RequestProducer.Type)
 	}

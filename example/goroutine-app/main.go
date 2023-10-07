@@ -107,7 +107,7 @@ func main() {
 
 	workerClients := map[string]bamboo.BambooWorkerClient{}
 	for k, v := range cfg.Workers {
-		workerClient, err := factory.CreateBambooWorkerClient(ctx, k, v, otel.GetTextMapPropagator())
+		workerClient, err := factory.CreateBambooWorkerClient(ctx, k, v)
 		if err != nil {
 			panic(err)
 		}

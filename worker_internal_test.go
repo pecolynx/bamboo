@@ -3,8 +3,10 @@ package bamboo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/pecolynx/bamboo/internal"
 	mocks "github.com/pecolynx/bamboo/mocks"
@@ -15,6 +17,7 @@ import (
 )
 
 var anythingOfContext = mock.MatchedBy(func(_ context.Context) bool { return true })
+var anythingOfChanIn = mock.MatchedBy(func(_ <-chan interface{}) bool { return true })
 
 type TestBambooHandler struct {
 	slog.Handler
@@ -60,12 +63,16 @@ func (s *stringList) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func Test_consumeRequestAndDispatchJob(t *testing.T) {
-	stringList := stringList{list: make([]string, 0)}
-	logger := slog.New(&sloghelper.BambooHandler{Handler: slog.NewJSONHandler(&stringList, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	})})
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerKey] = logger
+func Test_bambooWorker_run(t *testing.T) {
+	logConfigFunc := func(ctx context.Context, headers map[string]string) context.Context {
+		for k, v := range headers {
+			if k == sloghelper.RequestIDKey {
+				ctx = context.WithValue(ctx, sloghelper.RequestIDKey, v)
+			}
+		}
+		return ctx
+	}
+
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooWorkerLoggerKey)
 
@@ -76,54 +83,246 @@ func Test_consumeRequestAndDispatchJob(t *testing.T) {
 		HeartbeatIntervalSec: 0,
 		ResultChannel:        "RESULT-CHANNEL",
 	}
-	consumer := mocks.BambooRequestConsumer{}
-	consumer.On("Consume", ctx).Return(&req, nil)
-	// heartbeatPublisher := mocks.BambooHeartbeatPublisher{}
-	// heartbeatPublisher.On("Run", anythingOfContext, "RESULT-CHANNEL", 0)
-	var reqCtx context.Context
+
+	type inputs struct {
+		consumeError error
+	}
+	type outputs struct {
+		wantError bool
+	}
+	tests := []struct {
+		name    string
+		inputs  inputs
+		outputs outputs
+	}{
+		{
+			name:   "Run_HeartBeatPublisher",
+			inputs: inputs{},
+			outputs: outputs{
+				wantError: false,
+			},
+		},
+		{
+			name: "Run_HeartBeatPublisher",
+			inputs: inputs{
+				consumeError: errors.New("CONSUME_ERROR"),
+			},
+			outputs: outputs{
+				wantError: true,
+			},
+		},
+		{
+			name: "Run_HeartBeatPublisher",
+			inputs: inputs{
+				consumeError: ErrContextCanceled,
+			},
+			outputs: outputs{
+				wantError: false,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctxCancel, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
+
+			consumer := mocks.BambooRequestConsumer{}
+			consumer.On("Consume", ctxCancel).Return(&req, tt.inputs.consumeError)
+			consumer.On("Close", ctxCancel).Return(nil)
+			consumer.On("Ping", ctxCancel).Return(nil)
+			resultPublisher := mocks.BambooResultPublisher{}
+			resultPublisher.On("Ping", ctxCancel).Return(nil)
+			heartbeatPublisher := mocks.BambooHeartbeatPublisher{}
+			heartbeatPublisher.On("Ping", ctxCancel).Return(nil)
+
+			createRequestConsumerFunc := func(ctx context.Context) BambooRequestConsumer {
+				return &consumer
+			}
+			workerPool := make(chan chan internal.Job, 1)
+			worker := bambooWorker{
+				createRequestConsumerFunc: createRequestConsumerFunc,
+				resultPublisher:           &resultPublisher,
+				heartbeatPublisher:        &heartbeatPublisher,
+				logConfigFunc:             logConfigFunc,
+				workerPool:                workerPool,
+			}
+
+			// time.AfterFunc(100*time.Millisecond, cancel)
+			jobQueue := make(chan internal.Job, 1)
+			workerPool <- jobQueue
+			err := worker.run(ctxCancel)
+			if tt.outputs.wantError {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+
+		})
+	}
+
+}
+
+func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooWorkerLoggerKey)
+
 	logConfigFunc := func(ctx context.Context, headers map[string]string) context.Context {
 		for k, v := range headers {
 			if k == sloghelper.RequestIDKey {
 				ctx = context.WithValue(ctx, sloghelper.RequestIDKey, v)
 			}
 		}
-		reqCtx = ctx
-		return reqCtx
-	}
-	worker := bambooWorker{
-		logConfigFunc: logConfigFunc,
+		return ctx
 	}
 
-	// worker, err := bamboo.NewBambooWorker(
-	// 	createBambooRequestConsumerFunc,
-	// 	nil,
-	// 	nil,
-	// 	nil,
-	// 	0,
-	// 	logConfigFunc,
-	// )
-	// assert.Nil(t, err)
-
-	jobQueue := make(chan internal.Job, 1)
-
-	worker.consumeRequestAndDispatchJob(ctx, &consumer, jobQueue)
-
-	assert.Len(t, stringList.list, 3)
-	for i, s := range stringList.list {
-		logStruct := logStruct{}
-		if err := json.Unmarshal([]byte(s), &logStruct); err != nil {
-			t.Fatal(err)
-		}
-		switch i {
-		case 0:
-			assert.Equal(t, logStruct.Level, "DEBUG")
-			assert.Equal(t, logStruct.LoggerName, "BambooWorker")
-			assert.Equal(t, logStruct.Message, "worker is ready")
-		case 1:
-			assert.Equal(t, logStruct.Level, "DEBUG")
-		}
-		t.Logf("err %s", s)
+	type inputs struct {
+		heartbeatIntervalSec        int
+		consumeError                error
+		heartbeatPublishderRunError error
 	}
-	job := <-jobQueue
-	t.Logf("%s", job)
+	type outputs struct {
+		hasJob                             bool
+		numberOfCallsHeartbeatPublisherRun int
+		numberOfLogs                       int
+		wantError                          bool
+	}
+	tests := []struct {
+		name    string
+		inputs  inputs
+		outputs outputs
+	}{
+		{
+			name: "Run_HeartBeatPublisher",
+			inputs: inputs{
+				heartbeatIntervalSec: 1,
+			},
+			outputs: outputs{
+				hasJob:                             true,
+				numberOfCallsHeartbeatPublisherRun: 1,
+				numberOfLogs:                       3,
+				wantError:                          false,
+			},
+		},
+		{
+			name: "DoNotRun_HeartBeatPublisher",
+			inputs: inputs{
+				heartbeatIntervalSec: 0,
+			},
+			outputs: outputs{
+				hasJob:                             true,
+				numberOfCallsHeartbeatPublisherRun: 0,
+				numberOfLogs:                       3,
+				wantError:                          false,
+			},
+		},
+		{
+			name: "Raise_Error",
+			inputs: inputs{
+				heartbeatIntervalSec: 0,
+				consumeError:         errors.New("CONSUME_ERROR"),
+			},
+			outputs: outputs{
+				hasJob:                             true,
+				numberOfCallsHeartbeatPublisherRun: 0,
+				numberOfLogs:                       1,
+				wantError:                          true,
+			},
+		},
+		{
+			name: "Raise_ErrContextCanceled",
+			inputs: inputs{
+				heartbeatIntervalSec: 0,
+				consumeError:         ErrContextCanceled,
+			},
+			outputs: outputs{
+				hasJob:                             false,
+				numberOfCallsHeartbeatPublisherRun: 0,
+				numberOfLogs:                       1,
+				wantError:                          true,
+			},
+		},
+		{
+			name: "HeartBeatPublishder_Raise_Error",
+			inputs: inputs{
+				heartbeatIntervalSec:        1,
+				heartbeatPublishderRunError: errors.New("Run"),
+			},
+			outputs: outputs{
+				hasJob:                             true,
+				numberOfCallsHeartbeatPublisherRun: 1,
+				numberOfLogs:                       2,
+				wantError:                          true,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jobQueue := make(chan internal.Job, 1)
+			stringList := stringList{list: make([]string, 0)}
+			logger := slog.New(&sloghelper.BambooHandler{Handler: slog.NewJSONHandler(&stringList, &slog.HandlerOptions{
+				Level: slog.LevelDebug,
+			})})
+			sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerKey] = logger
+
+			// given
+			req := pb.WorkerParameter{
+				Headers: map[string]string{
+					ClientNameKey: "CLIENT-NAME",
+				},
+				HeartbeatIntervalSec: int32(tt.inputs.heartbeatIntervalSec),
+				ResultChannel:        "RESULT-CHANNEL",
+			}
+
+			consumer := mocks.BambooRequestConsumer{}
+			consumer.On("Consume", ctx).Return(&req, tt.inputs.consumeError)
+			heartbeatPublisher := mocks.BambooHeartbeatPublisher{}
+			heartbeatPublisher.On("Run", anythingOfContext, "RESULT-CHANNEL", 1, anythingOfChanIn, anythingOfChanIn).Return(tt.inputs.heartbeatPublishderRunError)
+
+			worker := bambooWorker{
+				heartbeatPublisher: &heartbeatPublisher,
+				logConfigFunc:      logConfigFunc,
+			}
+
+			// when
+			err := worker.consumeRequestAndDispatchJob(ctx, &consumer, jobQueue)
+
+			var hasJob bool
+			select {
+			case <-jobQueue:
+				hasJob = true
+			case <-time.After(100 * time.Millisecond):
+			}
+
+			// then
+			if tt.outputs.wantError {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, hasJob, tt.outputs.hasJob)
+			assert.Len(t, stringList.list, tt.outputs.numberOfLogs)
+			for i, s := range stringList.list {
+				logStruct := logStruct{}
+				if err := json.Unmarshal([]byte(s), &logStruct); err != nil {
+					t.Fatal(err)
+				}
+				switch i {
+				case 0:
+					assert.Equal(t, logStruct.Level, "DEBUG")
+					assert.Equal(t, logStruct.LoggerName, "BambooWorker")
+					assert.Equal(t, logStruct.Message, "worker is ready")
+				case 1:
+					assert.Equal(t, logStruct.Level, "DEBUG")
+					assert.Equal(t, logStruct.LoggerName, "BambooWorker")
+					assert.Equal(t, logStruct.Message, "job is received")
+				case 2:
+					assert.Equal(t, logStruct.Level, "DEBUG")
+					assert.Equal(t, logStruct.LoggerName, "BambooWorker")
+					assert.Equal(t, logStruct.Message, "dispatch job to worker")
+				}
+				t.Logf("err %s", s)
+			}
+			heartbeatPublisher.AssertNumberOfCalls(t, "Run", tt.outputs.numberOfCallsHeartbeatPublisherRun)
+		})
+	}
 }

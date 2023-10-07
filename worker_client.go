@@ -3,10 +3,12 @@ package bamboo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
 	"github.com/pecolynx/bamboo/sloghelper"
 )
@@ -52,39 +54,64 @@ func (c *bambooWorkerClient) Close(ctx context.Context) {
 }
 
 func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, param []byte) ([]byte, error) {
-	resultChannel, err := c.newRedisChannelString()
-	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooResultSubscriberLoggerKey)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerKey)
+	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooWorkerClientLoggerKey)
+	logger.DebugContext(ctx, "Call")
+
+	resultChannel, err := c.newResultChannelString()
+	if err != nil {
+		return nil, err
+	}
 
 	if err != nil {
 		return nil, err
 	}
 
+	timedout := c.startTimer(ctx, time.Duration(jobTimeoutSec)*time.Second)
+
 	ch := make(chan ByteArreayResult)
 	defer close(ch)
 	go func() {
+		sendResult := func(result ByteArreayResult) {
+			select {
+			case <-ctx.Done():
+			case <-timedout:
+			default:
+				ch <- result
+			}
+
+		}
 		resultBytes, err := c.subscribe(ctx, resultChannel, heartbeatIntervalSec, jobTimeoutSec)
 		if err != nil {
-			ch <- ByteArreayResult{Value: nil, Error: err}
+			sendResult(ByteArreayResult{Value: nil, Error: err})
 			return
 		}
 
-		ch <- ByteArreayResult{Value: resultBytes, Error: nil}
+		logger.DebugContext(ctx, fmt.Sprintf("result is received. resultChannel: %s", resultChannel))
+		sendResult(ByteArreayResult{Value: resultBytes, Error: nil})
 	}()
 
+	logger.DebugContext(ctx, fmt.Sprintf("produce request. resultChannel: %s, heartbeatIntervalSec: %d, jobTimeoutSec: %d", resultChannel, heartbeatIntervalSec, jobTimeoutSec))
 	if err := c.requestProducer.Produce(ctx, resultChannel, heartbeatIntervalSec, jobTimeoutSec, headers, param); err != nil {
 		return nil, err
 	}
 
-	result := <-ch
-	if result.Error != nil {
-		return nil, result.Error
+	select {
+	case <-ctx.Done():
+		return nil, internal.Errorf("context canceled. err: %w", ErrContextCanceled)
+	case <-timedout:
+		return nil, internal.Errorf("timedout. err: %w", ErrTimedout)
+	case result := <-ch:
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		return result.Value, nil
 	}
-
-	return result.Value, nil
 }
-func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int) ([]byte, error) {
 
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooResultSubscriberLoggerKey)
+func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int) ([]byte, error) {
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerKey)
+	logger.DebugContext(ctx, "subscribe")
 
 	heartbeat := make(chan int64)
 	defer close(heartbeat)
@@ -105,7 +132,7 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 	aborted := make(chan interface{})
 	defer close(aborted)
 
-	timedout := c.startTimer(ctx, time.Duration(jobTimeoutSec)*time.Second)
+	// timedout := c.startTimer(ctx, time.Duration(jobTimeoutSec)*time.Second)
 
 	go func() {
 		defer func() {
@@ -115,23 +142,26 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 		defer close(c1)
 		defer close(done)
 
-		resp, err := subscribeFunc(ctx)
-		if err != nil {
-			if errors.Is(err, ErrContextCanceled) {
-				logger.DebugContext(ctx, "context canceled")
+		for {
+			resp, err := subscribeFunc(ctx)
+			if err != nil {
+				if errors.Is(err, ErrContextCanceled) {
+					logger.DebugContext(ctx, "context canceled")
+					return
+				} else {
+					c1 <- ByteArreayResult{Value: nil, Error: err}
+					return
+				}
+			}
+
+			switch resp.Type {
+			case pb.ResponseType_HEARTBEAT:
+				heartbeat <- time.Now().Unix()
+			case pb.ResponseType_DATA:
+				c1 <- ByteArreayResult{Value: resp.Data, Error: nil}
 				return
-			} else {
-				c1 <- ByteArreayResult{Value: nil, Error: err}
 			}
 		}
-
-		switch resp.Type {
-		case pb.ResponseType_HEARTBEAT:
-			heartbeat <- time.Now().Unix()
-		case pb.ResponseType_DATA:
-			c1 <- ByteArreayResult{Value: resp.Data, Error: nil}
-		}
-
 	}()
 
 	if heartbeatIntervalSec != 0 {
@@ -157,9 +187,6 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 						last = h
 						logger.DebugContext(ctx, "heartbeat", slog.Int64("time", h))
 					}
-				case <-timedout:
-					logger.DebugContext(ctx, "timedout")
-					return
 				case <-ticker.C:
 					if time.Now().Unix()-last > int64(heartbeatIntervalSec)*2 {
 						logger.DebugContext(ctx, "heartbeat couldn't be received")
@@ -171,15 +198,13 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 	}
 
 	select {
-	case res := <-c1:
-		if res.Error != nil {
-			return nil, res.Error
+	case resp := <-c1:
+		if resp.Error != nil {
+			return nil, resp.Error
 		}
-		return res.Value, nil
+		return resp.Value, nil
 	case <-aborted:
 		return nil, ErrAborted
-	case <-timedout:
-		return nil, ErrTimedout
 	}
 
 }
@@ -199,11 +224,11 @@ func (c *bambooWorkerClient) startTimer(ctx context.Context, timeoutTime time.Du
 
 }
 
-func (c *bambooWorkerClient) newRedisChannelString() (string, error) {
-	redisChannel, err := uuid.NewRandom()
+func (c *bambooWorkerClient) newResultChannelString() (string, error) {
+	resultChannel, err := uuid.NewRandom()
 	if err != nil {
 		return "", err
 	}
 
-	return redisChannel.String(), nil
+	return resultChannel.String(), nil
 }

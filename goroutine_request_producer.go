@@ -3,11 +3,13 @@ package bamboo
 import (
 	"context"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type goroutineBambooRequestProducer struct {
@@ -16,15 +18,16 @@ type goroutineBambooRequestProducer struct {
 	queue      chan []byte
 }
 
-func NewGoroutineBambooRequestProducer(ctx context.Context, workerName string, queue chan []byte, propagator propagation.TextMapPropagator) BambooRequestProducer {
+func NewGoroutineBambooRequestProducer(ctx context.Context, workerName string, queue chan []byte) BambooRequestProducer {
 	return &goroutineBambooRequestProducer{
 		workerName: workerName,
 		queue:      queue,
-		propagator: propagator,
+		propagator: otel.GetTextMapPropagator(),
 	}
 }
 
 func (p *goroutineBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, data []byte) error {
+	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooWorkerClientLoggerKey)
 	carrier := propagation.MapCarrier{}
 
 	spanCtx, span := tracer.Start(ctx, p.workerName)
@@ -45,6 +48,7 @@ func (p *goroutineBambooRequestProducer) Produce(ctx context.Context, resultChan
 	if err != nil {
 		return internal.Errorf("proto.Marshal. err: %w", err)
 	}
+
 	p.queue <- reqBytes
 
 	return nil
