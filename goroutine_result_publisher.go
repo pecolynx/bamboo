@@ -10,14 +10,12 @@ import (
 )
 
 type goroutineRedisBambooResultPublisher struct {
-	pubsubMap  GoroutineBambooPubSubMap
-	workerPool chan chan internal.Job
+	pubsubMap GoroutineBambooPubSubMap
 }
 
 func NewGoroutineBambooResultPublisher(pubsubMap GoroutineBambooPubSubMap) BambooResultPublisher {
 	return &goroutineRedisBambooResultPublisher{
-		pubsubMap:  pubsubMap,
-		workerPool: make(chan chan internal.Job),
+		pubsubMap: pubsubMap,
 	}
 }
 

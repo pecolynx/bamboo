@@ -8,8 +8,8 @@ message WorkerParameter {
   map<string, string> carrier = 1;
   map<string, string> headers = 2;
   string              resultChannel = 3;
-  int32               heartbeatIntervalSec = 4;
-  int32               jobTimeoutSec = 5;
+  int32               heartbeatIntervalMSec = 4;
+  int32               jobTimeoutMSec = 5;
   bytes               data = 6;
 }
 

@@ -127,8 +127,8 @@ func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consume
 	reqCtx := w.logConfigFunc(ctx, req.Headers)
 	logger.DebugContext(reqCtx, "request is received")
 
-	if req.HeartbeatIntervalSec != 0 {
-		if err := w.heartbeatPublisher.Run(reqCtx, req.ResultChannel, int(req.HeartbeatIntervalSec), done, aborted); err != nil {
+	if req.HeartbeatIntervalMSec != 0 {
+		if err := w.heartbeatPublisher.Run(reqCtx, req.ResultChannel, int(req.HeartbeatIntervalMSec), done, aborted); err != nil {
 			worker <- internal.NewEmptyJob()
 			return internal.Errorf("heartbeatPublisher.Run. err: %w", err)
 		}

@@ -15,10 +15,10 @@ import (
 type goroutineBambooRequestProducer struct {
 	workerName string
 	propagator propagation.TextMapPropagator
-	queue      chan []byte
+	queue      chan<- []byte
 }
 
-func NewGoroutineBambooRequestProducer(ctx context.Context, workerName string, queue chan []byte) BambooRequestProducer {
+func NewGoroutineBambooRequestProducer(ctx context.Context, workerName string, queue chan<- []byte) BambooRequestProducer {
 	return &goroutineBambooRequestProducer{
 		workerName: workerName,
 		queue:      queue,
@@ -26,7 +26,7 @@ func NewGoroutineBambooRequestProducer(ctx context.Context, workerName string, q
 	}
 }
 
-func (p *goroutineBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, data []byte) error {
+func (p *goroutineBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, data []byte) error {
 	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooWorkerClientLoggerKey)
 	carrier := propagation.MapCarrier{}
 
@@ -36,12 +36,12 @@ func (p *goroutineBambooRequestProducer) Produce(ctx context.Context, resultChan
 	p.propagator.Inject(spanCtx, carrier)
 
 	req := pb.WorkerParameter{
-		Carrier:              carrier,
-		Headers:              headers,
-		ResultChannel:        resultChannel,
-		HeartbeatIntervalSec: int32(heartbeatIntervalSec),
-		JobTimeoutSec:        int32(jobTimeoutSec),
-		Data:                 data,
+		Carrier:               carrier,
+		Headers:               headers,
+		ResultChannel:         resultChannel,
+		HeartbeatIntervalMSec: int32(heartbeatIntervalMSec),
+		JobTimeoutMSec:        int32(jobTimeoutMSec),
+		Data:                  data,
 	}
 
 	reqBytes, err := proto.Marshal(&req)

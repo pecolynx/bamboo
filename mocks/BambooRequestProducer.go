@@ -63,13 +63,13 @@ func (_c *BambooRequestProducer_Close_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
-// Produce provides a mock function with given fields: ctx, resultChannel, heartbeatIntervalSec, jobTimeoutSec, headers, data
-func (_m *BambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, data []byte) error {
-	ret := _m.Called(ctx, resultChannel, heartbeatIntervalSec, jobTimeoutSec, headers, data)
+// Produce provides a mock function with given fields: ctx, resultChannel, heartbeatIntervalMSec, jobTimeoutMSec, headers, data
+func (_m *BambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, data []byte) error {
+	ret := _m.Called(ctx, resultChannel, heartbeatIntervalMSec, jobTimeoutMSec, headers, data)
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, int, int, map[string]string, []byte) error); ok {
-		r0 = rf(ctx, resultChannel, heartbeatIntervalSec, jobTimeoutSec, headers, data)
+		r0 = rf(ctx, resultChannel, heartbeatIntervalMSec, jobTimeoutMSec, headers, data)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -85,15 +85,15 @@ type BambooRequestProducer_Produce_Call struct {
 // Produce is a helper method to define mock.On call
 //   - ctx context.Context
 //   - resultChannel string
-//   - heartbeatIntervalSec int
-//   - jobTimeoutSec int
+//   - heartbeatIntervalMSec int
+//   - jobTimeoutMSec int
 //   - headers map[string]string
 //   - data []byte
-func (_e *BambooRequestProducer_Expecter) Produce(ctx interface{}, resultChannel interface{}, heartbeatIntervalSec interface{}, jobTimeoutSec interface{}, headers interface{}, data interface{}) *BambooRequestProducer_Produce_Call {
-	return &BambooRequestProducer_Produce_Call{Call: _e.mock.On("Produce", ctx, resultChannel, heartbeatIntervalSec, jobTimeoutSec, headers, data)}
+func (_e *BambooRequestProducer_Expecter) Produce(ctx interface{}, resultChannel interface{}, heartbeatIntervalMSec interface{}, jobTimeoutMSec interface{}, headers interface{}, data interface{}) *BambooRequestProducer_Produce_Call {
+	return &BambooRequestProducer_Produce_Call{Call: _e.mock.On("Produce", ctx, resultChannel, heartbeatIntervalMSec, jobTimeoutMSec, headers, data)}
 }
 
-func (_c *BambooRequestProducer_Produce_Call) Run(run func(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, data []byte)) *BambooRequestProducer_Produce_Call {
+func (_c *BambooRequestProducer_Produce_Call) Run(run func(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, data []byte)) *BambooRequestProducer_Produce_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string), args[2].(int), args[3].(int), args[4].(map[string]string), args[5].([]byte))
 	})

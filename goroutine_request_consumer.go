@@ -12,10 +12,10 @@ import (
 )
 
 type goroutineBambooRequestConsumer struct {
-	queue chan []byte
+	queue <-chan []byte
 }
 
-func NewGoroutineBambooRequestConsumer(queue chan []byte) BambooRequestConsumer {
+func NewGoroutineBambooRequestConsumer(queue <-chan []byte) BambooRequestConsumer {
 	return &goroutineBambooRequestConsumer{
 		queue: queue,
 	}

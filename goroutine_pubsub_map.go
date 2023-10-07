@@ -2,6 +2,7 @@ package bamboo
 
 import (
 	"errors"
+	"fmt"
 )
 
 type GoroutineBambooPubSubMap interface {
@@ -47,7 +48,7 @@ func (m *goroutineBambooPubSubMap) CreateChannel(channelName string) chan []byte
 
 func (m *goroutineBambooPubSubMap) GetChannel(channelName string) (chan []byte, error) {
 	if _, ok := m.pubsubMap[channelName]; !ok {
-		return nil, errors.New("NotFOundxx")
+		return nil, fmt.Errorf("pubsub channel not found. name: %s", channelName)
 
 	}
 	pubsub := m.pubsubMap[channelName]
@@ -57,7 +58,7 @@ func (m *goroutineBambooPubSubMap) GetChannel(channelName string) (chan []byte, 
 
 func (m *goroutineBambooPubSubMap) ClosePublishChannel(channelName string) error {
 	if _, ok := m.closePubMap[channelName]; !ok {
-		return errors.New("NotFound")
+		return fmt.Errorf("closepub channel not found. name: %s", channelName)
 	}
 	m.closePubMap[channelName] <- struct{}{}
 	return nil

@@ -2,6 +2,7 @@ package bamboo_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -9,13 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/pecolynx/bamboo"
 	"github.com/pecolynx/bamboo/internal"
 	pb_test "github.com/pecolynx/bamboo/proto_test"
 	"github.com/pecolynx/bamboo/sloghelper"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 type logStruct struct {
@@ -36,8 +38,22 @@ func (s *stringList) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func Test_WorkerClient_Call(t *testing.T) {
-	ctx := context.Background()
+type emptyBambooHeartbeatPublisher struct {
+}
+
+func NewEmptyBambooHeartbeatPublisher() bamboo.BambooHeartbeatPublisher {
+	return &emptyBambooHeartbeatPublisher{}
+}
+
+func (h *emptyBambooHeartbeatPublisher) Ping(ctx context.Context) error {
+	return nil
+}
+
+func (h *emptyBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, done <-chan interface{}, aborted <-chan interface{}) error {
+	return nil
+}
+
+func initLog() stringList {
 	stringList := stringList{list: make([]string, 0), writer: os.Stdout}
 
 	logger := slog.New(&sloghelper.BambooHandler{Handler: slog.NewJSONHandler(&stringList, &slog.HandlerOptions{
@@ -50,17 +66,24 @@ func Test_WorkerClient_Call(t *testing.T) {
 	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerKey] = logger
 	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerKey] = logger
 	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerKey] = logger
+	sloghelper.BambooLoggers[sloghelper.BambooHeartbeatPublisherLoggerKey] = logger
+	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerKey] = logger
+	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerKey] = logger
 
-	pubsubMap := bamboo.NewGoroutineBambooPubSubMap()
+	return stringList
+}
 
-	queue := make(chan []byte, 1)
-	resultPublisher := bamboo.NewGoroutineBambooResultPublisher(pubsubMap)
-	heartbeatPublisher := bamboo.NewGoroutineBambooHeartbeatPublisher(pubsubMap)
-
-	createBambooRequestConsumerFunc := func(ctx context.Context) bamboo.BambooRequestConsumer {
-		return bamboo.NewGoroutineBambooRequestConsumer(queue)
+var (
+	logConfigFunc = func(ctx context.Context, headers map[string]string) context.Context {
+		for k, v := range headers {
+			if k == sloghelper.RequestIDKey {
+				ctx = context.WithValue(ctx, sloghelper.RequestIDKey, v)
+			}
+		}
+		return ctx
 	}
-	workerFunc := func(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
+
+	workerFunc = func(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
 		logger := sloghelper.FromContext(ctx, "bamboo_test")
 		ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, "bamboo_test")
 
@@ -69,7 +92,7 @@ func Test_WorkerClient_Call(t *testing.T) {
 			return nil, internal.Errorf("proto.Unmarshal. err: %w", err)
 		}
 
-		time.Sleep(time.Second * 1)
+		time.Sleep(time.Duration(req.WaitMSec) * time.Millisecond)
 
 		answer := req.X * req.Y
 		logger.InfoContext(ctx, fmt.Sprintf("answer: %d", answer))
@@ -82,42 +105,116 @@ func Test_WorkerClient_Call(t *testing.T) {
 
 		return respBytes, nil
 	}
+)
 
-	logConfigFunc := func(ctx context.Context, headers map[string]string) context.Context {
-		for k, v := range headers {
-			if k == sloghelper.RequestIDKey {
-				ctx = context.WithValue(ctx, sloghelper.RequestIDKey, v)
-			}
-		}
-		return ctx
-	}
-
-	worker, err := bamboo.NewBambooWorker(createBambooRequestConsumerFunc, resultPublisher, heartbeatPublisher, workerFunc, 1, logConfigFunc)
-	if err != nil {
-		panic(err)
-	}
-	rp := bamboo.NewGoroutineBambooRequestProducer(ctx, "WORKER-NAME", queue)
-	rs := bamboo.NewGoroutineBambooResultSubscriber(ctx, "WORKER-NAME", pubsubMap)
-	workerClient := bamboo.NewBambooWorkerClient(rp, rs)
-
-	ctxCanel, cancel := context.WithCancel(ctx)
+func Test_WorkerClient_Call(t *testing.T) {
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	initLog()
 
-	go func() {
-		time.AfterFunc(5000*time.Millisecond, cancel)
-		worker.Run(ctxCanel)
-	}()
+	type inputs struct {
+		heartbeatIntervalMSec   int
+		jobTimeoutMSec          int
+		waitMSec                int
+		emptyHeartbeatPublisher bool
+	}
+	type outputs struct {
+		callError error
+	}
+	tests := []struct {
+		name    string
+		inputs  inputs
+		outputs outputs
+	}{
+		{
+			name: "Success_without_Heartbeat",
+			inputs: inputs{
+				heartbeatIntervalMSec: 0,
+				jobTimeoutMSec:        200,
+				waitMSec:              100,
+			},
+			outputs: outputs{
+				callError: nil,
+			},
+		},
+		{
+			name: "Timedout",
+			inputs: inputs{
+				heartbeatIntervalMSec: 0,
+				jobTimeoutMSec:        100,
+				waitMSec:              200,
+			},
+			outputs: outputs{
+				callError: bamboo.ErrTimedout,
+			},
+		},
+		{
+			name: "Success_with_Heartbeat",
+			inputs: inputs{
+				heartbeatIntervalMSec: 200,
+				jobTimeoutMSec:        800,
+				waitMSec:              400,
+			},
+			outputs: outputs{
+				callError: nil,
+			},
+		},
+		{
+			name: "Aborted",
+			inputs: inputs{
+				heartbeatIntervalMSec:   200,
+				jobTimeoutMSec:          800,
+				waitMSec:                400,
+				emptyHeartbeatPublisher: true,
+			},
+			outputs: outputs{
+				callError: bamboo.ErrAborted,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pubsubMap := bamboo.NewGoroutineBambooPubSubMap()
+			queue := make(chan []byte, 1)
+			resultPublisher := bamboo.NewGoroutineBambooResultPublisher(pubsubMap)
+			heartbeatPublisher := bamboo.NewGoroutineBambooHeartbeatPublisher(pubsubMap)
+			if tt.inputs.emptyHeartbeatPublisher {
+				heartbeatPublisher = NewEmptyBambooHeartbeatPublisher()
+			}
 
-	req := pb_test.WorkerTestParameter{X: 3, Y: 5}
-	reqBytes, err := proto.Marshal(&req)
-	require.Nil(t, err)
+			createBambooRequestConsumerFunc := func(ctx context.Context) bamboo.BambooRequestConsumer {
+				return bamboo.NewGoroutineBambooRequestConsumer(queue)
+			}
 
-	respBytes, err := workerClient.Call(ctx, 0, 3, map[string]string{}, reqBytes)
-	require.Nil(t, err)
+			requestProducer := bamboo.NewGoroutineBambooRequestProducer(ctx, "WORKER-NAME", queue)
+			resultSubscriber := bamboo.NewGoroutineBambooResultSubscriber(ctx, "WORKER-NAME", pubsubMap)
+			workerClient := bamboo.NewBambooWorkerClient(requestProducer, resultSubscriber)
+			worker, err := bamboo.NewBambooWorker(createBambooRequestConsumerFunc, resultPublisher, heartbeatPublisher, workerFunc, 1, logConfigFunc)
+			require.Nil(t, err)
 
-	resp := pb_test.WorkerTestResponse{}
-	err = proto.Unmarshal(respBytes, &resp)
-	require.Nil(t, err)
+			go func() {
+				time.AfterFunc(5000*time.Millisecond, cancel)
+				worker.Run(ctx)
+			}()
 
-	assert.Equal(t, int(resp.Value), 15)
+			req := pb_test.WorkerTestParameter{X: 3, Y: 5, WaitMSec: int32(tt.inputs.waitMSec)}
+			reqBytes, err := proto.Marshal(&req)
+			require.Nil(t, err)
+
+			respBytes, err := workerClient.Call(ctx, tt.inputs.heartbeatIntervalMSec, tt.inputs.jobTimeoutMSec, map[string]string{}, reqBytes)
+			if tt.outputs.callError != nil {
+				assert.True(t, errors.Is(err, tt.outputs.callError))
+				return
+			}
+
+			require.Nil(t, err)
+
+			resp := pb_test.WorkerTestResponse{}
+			err = proto.Unmarshal(respBytes, &resp)
+			require.Nil(t, err)
+
+			assert.Equal(t, int(resp.Value), 15)
+		})
+	}
 }

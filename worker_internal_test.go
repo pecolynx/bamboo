@@ -80,8 +80,8 @@ func Test_bambooWorker_run(t *testing.T) {
 		Headers: map[string]string{
 			ClientNameKey: "CLIENT-NAME",
 		},
-		HeartbeatIntervalSec: 0,
-		ResultChannel:        "RESULT-CHANNEL",
+		HeartbeatIntervalMSec: 0,
+		ResultChannel:         "RESULT-CHANNEL",
 	}
 
 	type inputs struct {
@@ -176,7 +176,7 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 	}
 
 	type inputs struct {
-		heartbeatIntervalSec        int
+		heartbeatIntervalMSec       int
 		consumeError                error
 		heartbeatPublishderRunError error
 	}
@@ -194,7 +194,7 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 		{
 			name: "Run_HeartBeatPublisher",
 			inputs: inputs{
-				heartbeatIntervalSec: 1,
+				heartbeatIntervalMSec: 1000,
 			},
 			outputs: outputs{
 				hasJob:                             true,
@@ -206,7 +206,7 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 		{
 			name: "DoNotRun_HeartBeatPublisher",
 			inputs: inputs{
-				heartbeatIntervalSec: 0,
+				heartbeatIntervalMSec: 0,
 			},
 			outputs: outputs{
 				hasJob:                             true,
@@ -218,8 +218,8 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 		{
 			name: "Raise_Error",
 			inputs: inputs{
-				heartbeatIntervalSec: 0,
-				consumeError:         errors.New("CONSUME_ERROR"),
+				heartbeatIntervalMSec: 0,
+				consumeError:          errors.New("CONSUME_ERROR"),
 			},
 			outputs: outputs{
 				hasJob:                             true,
@@ -231,8 +231,8 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 		{
 			name: "Raise_ErrContextCanceled",
 			inputs: inputs{
-				heartbeatIntervalSec: 0,
-				consumeError:         ErrContextCanceled,
+				heartbeatIntervalMSec: 0,
+				consumeError:          ErrContextCanceled,
 			},
 			outputs: outputs{
 				hasJob:                             false,
@@ -244,7 +244,7 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 		{
 			name: "HeartBeatPublishder_Raise_Error",
 			inputs: inputs{
-				heartbeatIntervalSec:        1,
+				heartbeatIntervalMSec:       1000,
 				heartbeatPublishderRunError: errors.New("Run"),
 			},
 			outputs: outputs{
@@ -269,14 +269,14 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 				Headers: map[string]string{
 					ClientNameKey: "CLIENT-NAME",
 				},
-				HeartbeatIntervalSec: int32(tt.inputs.heartbeatIntervalSec),
-				ResultChannel:        "RESULT-CHANNEL",
+				HeartbeatIntervalMSec: int32(tt.inputs.heartbeatIntervalMSec),
+				ResultChannel:         "RESULT-CHANNEL",
 			}
 
 			consumer := mocks.BambooRequestConsumer{}
 			consumer.On("Consume", ctx).Return(&req, tt.inputs.consumeError)
 			heartbeatPublisher := mocks.BambooHeartbeatPublisher{}
-			heartbeatPublisher.On("Run", anythingOfContext, "RESULT-CHANNEL", 1, anythingOfChanIn, anythingOfChanIn).Return(tt.inputs.heartbeatPublishderRunError)
+			heartbeatPublisher.On("Run", anythingOfContext, "RESULT-CHANNEL", tt.inputs.heartbeatIntervalMSec, anythingOfChanIn, anythingOfChanIn).Return(tt.inputs.heartbeatPublishderRunError)
 
 			worker := bambooWorker{
 				heartbeatPublisher: &heartbeatPublisher,
@@ -314,7 +314,7 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 				case 1:
 					assert.Equal(t, logStruct.Level, "DEBUG")
 					assert.Equal(t, logStruct.LoggerName, "BambooWorker")
-					assert.Equal(t, logStruct.Message, "job is received")
+					assert.Equal(t, logStruct.Message, "request is received")
 				case 2:
 					assert.Equal(t, logStruct.Level, "DEBUG")
 					assert.Equal(t, logStruct.LoggerName, "BambooWorker")

@@ -28,11 +28,11 @@ func NewGoroutineBambooHeartbeatPublisher(pubsubMap GoroutineBambooPubSubMap) Ba
 	}
 }
 
-func (p *goroutineBambooHeartbeatPublisher) Ping(ctx context.Context) error {
+func (h *goroutineBambooHeartbeatPublisher) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (h *goroutineBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{}) error {
+func (h *goroutineBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, done <-chan interface{}, aborted <-chan interface{}) error {
 	logger := sloghelper.FromContext(ctx, sloghelper.BambooHeartbeatPublisherLoggerKey)
 	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooHeartbeatPublisherLoggerKey)
 
@@ -41,12 +41,12 @@ func (h *goroutineBambooHeartbeatPublisher) Run(ctx context.Context, resultChann
 		return err
 	}
 
-	if heartbeatIntervalSec == 0 {
-		logger.DebugContext(ctx, "heartbeat is disabled because heartbeatIntervalSec is zero.")
+	if heartbeatIntervalMSec == 0 {
+		logger.DebugContext(ctx, "heartbeat is disabled because heartbeatIntervalMSec is zero.")
 		return nil
 	}
 
-	heartbeatInterval := time.Duration(heartbeatIntervalSec) * time.Second
+	heartbeatInterval := time.Duration(heartbeatIntervalMSec) * time.Millisecond
 	pulse := time.NewTicker(heartbeatInterval)
 
 	go func() {

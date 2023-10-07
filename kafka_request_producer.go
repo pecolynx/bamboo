@@ -27,7 +27,7 @@ func NewKafkaBambooRequestProducer(ctx context.Context, workerName string, kafka
 	}
 }
 
-func (p *kafkaBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, data []byte) error {
+func (p *kafkaBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, data []byte) error {
 	carrier := propagation.MapCarrier{}
 
 	spanCtx, span := tracer.Start(ctx, p.workerName)

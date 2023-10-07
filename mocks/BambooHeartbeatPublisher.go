@@ -63,13 +63,13 @@ func (_c *BambooHeartbeatPublisher_Ping_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
-// Run provides a mock function with given fields: ctx, resultChannel, heartbeatIntervalSec, done, aborted
-func (_m *BambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{}) error {
-	ret := _m.Called(ctx, resultChannel, heartbeatIntervalSec, done, aborted)
+// Run provides a mock function with given fields: ctx, resultChannel, heartbeatIntervalMSec, done, aborted
+func (_m *BambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, done <-chan interface{}, aborted <-chan interface{}) error {
+	ret := _m.Called(ctx, resultChannel, heartbeatIntervalMSec, done, aborted)
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, int, <-chan interface{}, <-chan interface{}) error); ok {
-		r0 = rf(ctx, resultChannel, heartbeatIntervalSec, done, aborted)
+		r0 = rf(ctx, resultChannel, heartbeatIntervalMSec, done, aborted)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -85,14 +85,14 @@ type BambooHeartbeatPublisher_Run_Call struct {
 // Run is a helper method to define mock.On call
 //   - ctx context.Context
 //   - resultChannel string
-//   - heartbeatIntervalSec int
+//   - heartbeatIntervalMSec int
 //   - done <-chan interface{}
 //   - aborted <-chan interface{}
-func (_e *BambooHeartbeatPublisher_Expecter) Run(ctx interface{}, resultChannel interface{}, heartbeatIntervalSec interface{}, done interface{}, aborted interface{}) *BambooHeartbeatPublisher_Run_Call {
-	return &BambooHeartbeatPublisher_Run_Call{Call: _e.mock.On("Run", ctx, resultChannel, heartbeatIntervalSec, done, aborted)}
+func (_e *BambooHeartbeatPublisher_Expecter) Run(ctx interface{}, resultChannel interface{}, heartbeatIntervalMSec interface{}, done interface{}, aborted interface{}) *BambooHeartbeatPublisher_Run_Call {
+	return &BambooHeartbeatPublisher_Run_Call{Call: _e.mock.On("Run", ctx, resultChannel, heartbeatIntervalMSec, done, aborted)}
 }
 
-func (_c *BambooHeartbeatPublisher_Run_Call) Run(run func(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{})) *BambooHeartbeatPublisher_Run_Call {
+func (_c *BambooHeartbeatPublisher_Run_Call) Run(run func(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, done <-chan interface{}, aborted <-chan interface{})) *BambooHeartbeatPublisher_Run_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string), args[2].(int), args[3].(<-chan interface{}), args[4].(<-chan interface{}))
 	})

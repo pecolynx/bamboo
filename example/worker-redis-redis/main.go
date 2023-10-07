@@ -117,6 +117,9 @@ func initialize(ctx context.Context, mode string) (*Config, *sdktrace.TracerProv
 func workerFunc(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
 	logger := sloghelper.FromContext(ctx, appName)
 
+	ctx, span := tracer.Start(ctx, "workerFunc")
+	defer span.End()
+
 	req := RedisRedisParameter{}
 	if err := proto.Unmarshal(reqBytes, &req); err != nil {
 		return nil, internal.Errorf("proto.Unmarshal. err: %w", err)

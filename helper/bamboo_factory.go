@@ -92,7 +92,7 @@ func (f *bambooFactory) CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.
 		}
 
 		createBambooRequestConsumerFunc = func(ctx context.Context) bamboo.BambooRequestConsumer {
-			return bamboo.NewRedisBambooRequestConsumer(consumerOptions, cfg.Consumer.Redis.Channel, time.Duration(cfg.Consumer.Redis.RequestWaitTimeoutSec)*time.Second)
+			return bamboo.NewRedisBambooRequestConsumer(consumerOptions, cfg.Consumer.Redis.Channel, time.Duration(cfg.Consumer.Redis.RequestWaitTimeoutMSec)*time.Millisecond)
 		}
 	} else if cfg.Consumer.Type == "kafka" {
 		consumerOptions := kafka.ReaderConfig{
@@ -103,7 +103,7 @@ func (f *bambooFactory) CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.
 		}
 
 		createBambooRequestConsumerFunc = func(ctx context.Context) bamboo.BambooRequestConsumer {
-			return bamboo.NewKafkaBambooRequestConsumer(consumerOptions, time.Duration(cfg.Consumer.Redis.RequestWaitTimeoutSec)*time.Second)
+			return bamboo.NewKafkaBambooRequestConsumer(consumerOptions, time.Duration(cfg.Consumer.Redis.RequestWaitTimeoutMSec)*time.Millisecond)
 		}
 	} else if cfg.Consumer.Type == "goroutine" {
 		if _, ok := f.queueMap[cfg.Consumer.Goroutine.Channel]; !ok {
