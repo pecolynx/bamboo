@@ -21,12 +21,12 @@ import (
 
 var testAppNameContextKey sloghelper.ContextKey = sloghelper.ContextKey("bamboo_test")
 
-type logStruct struct {
-	Level      string `json:"level"`
-	ClientName string `json:"client_name"`
-	LoggerName string `json:"bamboo_logger_name"`
-	Message    string `json:"msg"`
-}
+// type logStruct struct {
+// 	Level      string `json:"level"`
+// 	ClientName string `json:"client_name"`
+// 	LoggerName string `json:"bamboo_logger_name"`
+// 	Message    string `json:"msg"`
+// }
 
 type stringList struct {
 	list   []string
@@ -34,7 +34,9 @@ type stringList struct {
 }
 
 func (s *stringList) Write(p []byte) (n int, err error) {
-	s.writer.Write(p)
+	if _, err := s.writer.Write(p); err != nil {
+		panic(err)
+	}
 	s.list = append(s.list, string(p))
 	return len(p), nil
 }
@@ -198,7 +200,8 @@ func Test_WorkerClient_Call(t *testing.T) {
 
 			go func() {
 				time.AfterFunc(5000*time.Millisecond, cancel)
-				worker.Run(ctx)
+				err := worker.Run(ctx)
+				assert.NoError(t, err)
 			}()
 
 			req := pb_test.WorkerTestParameter{X: 3, Y: 5, WaitMSec: int32(tt.inputs.waitMSec)}
