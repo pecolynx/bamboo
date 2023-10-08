@@ -95,6 +95,10 @@ jobs:
           # - ./example/worker-redis-redis
     name: golang
     runs-on: ubuntu-latest
+    permissions:
+      checks: "write"
+      contents: "read"
+      pull-requests: "write"
     steps:
       - uses: actions/checkout@v3
         with:
@@ -176,6 +180,10 @@ jobs:
           # - ./example/worker-redis-redis
     name: golang
     runs-on: ubuntu-latest
+    permissions:
+      checks: "write"
+      contents: "read"
+      pull-requests: "write"
     steps:
       - uses: actions/checkout@v3
         with:
@@ -242,6 +250,10 @@ jobs:
           # - ./example/worker-redis-redis
     name: golang
     runs-on: ubuntu-latest
+    permissions:
+      checks: "write"
+      contents: "read"
+      pull-requests: "write"
     steps:
       - uses: actions/checkout@v3
         with:
@@ -297,6 +309,10 @@ jobs:
           - ./example/worker-redis-redis
     name: others
     runs-on: ubuntu-latest
+    permissions:
+      checks: "write"
+      contents: "read"
+      pull-requests: "write"
     steps:
       - uses: actions/checkout@v3
         with:
