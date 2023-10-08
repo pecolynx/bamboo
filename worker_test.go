@@ -2,7 +2,6 @@ package bamboo_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -204,7 +203,7 @@ func Test_WorkerClient_Call(t *testing.T) {
 
 			respBytes, err := workerClient.Call(ctx, tt.inputs.heartbeatIntervalMSec, tt.inputs.jobTimeoutMSec, map[string]string{}, reqBytes)
 			if tt.outputs.callError != nil {
-				assert.True(t, errors.Is(err, tt.outputs.callError))
+				assert.ErrorIs(t, err, tt.outputs.callError)
 				return
 			}
 
