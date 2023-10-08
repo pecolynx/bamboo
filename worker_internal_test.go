@@ -156,10 +156,8 @@ func Test_bambooWorker_run(t *testing.T) {
 			} else {
 				assert.Nil(t, err)
 			}
-
 		})
 	}
-
 }
 
 func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
