@@ -14,6 +14,7 @@ import (
 	"github.com/pecolynx/bamboo/sloghelper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 var anythingOfContext = mock.MatchedBy(func(_ context.Context) bool { return true })
@@ -25,6 +26,15 @@ type TestBambooHandler struct {
 
 var (
 	ClientNameKey = "client_name"
+
+	logConfigFunc = func(ctx context.Context, headers map[string]string) context.Context {
+		for k, v := range headers {
+			if k == sloghelper.RequestIDKey {
+				ctx = sloghelper.WithValue(ctx, sloghelper.RequestIDContextKey, v)
+			}
+		}
+		return ctx
+	}
 )
 
 func (h *TestBambooHandler) Handle(ctx context.Context, record slog.Record) error {
@@ -64,15 +74,6 @@ func (s *stringList) Write(p []byte) (n int, err error) {
 }
 
 func Test_bambooWorker_run(t *testing.T) {
-	logConfigFunc := func(ctx context.Context, headers map[string]string) context.Context {
-		for k, v := range headers {
-			if k == sloghelper.RequestIDKey {
-				ctx = sloghelper.WithValue(ctx, sloghelper.RequestIDContextKey, v)
-			}
-		}
-		return ctx
-	}
-
 	ctx := context.Background()
 	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerLoggerContextKey)
 
@@ -163,15 +164,6 @@ func Test_bambooWorker_run(t *testing.T) {
 func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 	ctx := context.Background()
 	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerLoggerContextKey)
-
-	logConfigFunc := func(ctx context.Context, headers map[string]string) context.Context {
-		for k, v := range headers {
-			if k == sloghelper.RequestIDKey {
-				ctx = sloghelper.WithValue(ctx, sloghelper.RequestIDContextKey, v)
-			}
-		}
-		return ctx
-	}
 
 	type inputs struct {
 		heartbeatIntervalMSec       int
@@ -299,11 +291,12 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 			}
 			assert.Equal(t, hasJob, tt.outputs.hasJob)
 			assert.Len(t, stringList.list, tt.outputs.numberOfLogs)
+
 			for i, s := range stringList.list {
 				logStruct := logStruct{}
-				if err := json.Unmarshal([]byte(s), &logStruct); err != nil {
-					t.Fatal(err)
-				}
+				err := json.Unmarshal([]byte(s), &logStruct)
+				require.NoError(t, err)
+
 				switch i {
 				case 0:
 					assert.Equal(t, logStruct.Level, "DEBUG")
