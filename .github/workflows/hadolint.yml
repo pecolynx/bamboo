@@ -1,0 +1,14 @@
+---
+on: [pull_request]
+name: Hadolint
+jobs:
+  hadolint:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: hadolint/hadolint-action@v3.0.0
+        with:
+          recursive: true

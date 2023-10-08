@@ -1,0 +1,321 @@
+---
+on: [pull_request]
+name: Reviewdog
+jobs:
+  golang_1:
+    strategy:
+      matrix:
+        workdir:
+          - ./
+          - ./example/calc-app
+          - ./example/goroutine-app
+          - ./example/worker-redis-redis
+    name: golang
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files-specific
+        uses: tj-actions/changed-files@v35
+        with:
+          files: |
+            ${{ matrix.workdir }}/**
+
+      - name: staticcheck
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--config=../.github/.golangci.yml --disable-all -E staticcheck --timeout=10m"
+          tool_name: staticcheck
+          filter_mode: nofilter
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: golangci-lint
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          # golangci_lint_flags: "--enable-all --exclude-use-default=false"
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: errcheck
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E errcheck --timeout=10m"
+          tool_name: errcheck
+          filter_mode: nofilter
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: gosec
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E gosec --timeout=10m"
+          tool_name: gosec
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: gofmt
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E gofmt --timeout=10m"
+          tool_name: gofmt
+          filter_mode: nofilter
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+  golang_2:
+    strategy:
+      matrix:
+        workdir:
+          - ./
+          - ./example/calc-app
+          - ./example/goroutine-app
+          - ./example/worker-redis-redis
+    name: golang
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files-specific
+        uses: tj-actions/changed-files@v35
+        with:
+          files: |
+            ${{ matrix.workdir }}/**
+
+      - name: unconvert
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E unconvert --timeout=10m"
+          tool_name: unconvert
+          filter_mode: nofilter
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: gomnd
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E gomnd --timeout=10m"
+          tool_name: gomnd
+          filter_mode: nofilter
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: errorlint
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E errorlint --timeout=10m"
+          tool_name: errorlint
+          filter_mode: nofilter
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: gocyclo
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--config=../.github/.golangci.yml --disable-all --tests=false -E gocyclo --timeout=10m"
+          tool_name: gocyclo
+          filter_mode: nofilter
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: goimports
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E goimports --timeout=10m"
+          tool_name: goimports
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+  golang_3:
+    strategy:
+      matrix:
+        workdir:
+          - ./
+          - ./example/calc-app
+          - ./example/goroutine-app
+          - ./example/worker-redis-redis
+    name: golang
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files-specific
+        uses: tj-actions/changed-files@v35
+        with:
+          files: |
+            ${{ matrix.workdir }}/**
+
+      - name: bodyclose
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E bodyclose --timeout=10m"
+          tool_name: bodyclose
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: exhaustive
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E exhaustive --timeout=10m"
+          tool_name: exhaustive
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: forbidigo
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E forbidigo --timeout=10m"
+          tool_name: forbidigo
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: forcetypeassert
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E forcetypeassert --timeout=10m"
+          tool_name: forcetypeassert
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+  golang_4:
+    strategy:
+      matrix:
+        workdir:
+          - ./
+          - ./example/calc-app
+          - ./example/goroutine-app
+          - ./example/worker-redis-redis
+    name: golang
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files-specific
+        uses: tj-actions/changed-files@v35
+        with:
+          files: |
+            ${{ matrix.workdir }}/**
+
+      - name: noctx
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E noctx --timeout=10m"
+          tool_name: noctx
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: whitespace
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--disable-all -E whitespace --timeout=10m"
+          tool_name: whitespace
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+      - name: gocognit
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          golangci_lint_flags: "--config=../.github/.golangci.yml --disable-all -E gocognit --timeout=10m"
+          tool_name: gocognit
+          fail_on_error: true
+          workdir: ${{ matrix.workdir }}
+
+  others:
+    strategy:
+      matrix:
+        workdir:
+          - ./
+          - ./example/calc-app
+          - ./example/goroutine-app
+          - ./example/worker-redis-redis
+    name: others
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Get changed files
+        id: changed-files-specific
+        uses: tj-actions/changed-files@v35
+        with:
+          files: |
+            ${{ matrix.workdir }}/**
+      - name: misspell
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-misspell@v1
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          locale: "US"
+          fail_on_error: true
+      - name: yamllint
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        uses: reviewdog/action-yamllint@v1
+        with:
+          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          reporter: github-pr-review
+          yamllint_flags: "-c .github/.yamllint.yml ."
+          fail_on_error: true
