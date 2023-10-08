@@ -21,6 +21,10 @@ type redisBambooRequestConsumer struct {
 	requestWaitTimeout time.Duration
 }
 
+const (
+	redisBrpopValidLength = 2
+)
+
 func NewRedisBambooRequestConsumer(consumerOptions *redis.UniversalOptions, consumerChannel string, requestWaitTimeout time.Duration) BambooRequestConsumer {
 	return &redisBambooRequestConsumer{
 		consumer:           redis.NewUniversalClient(consumerOptions),
@@ -46,7 +50,7 @@ func (c *redisBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerPar
 
 			if len(m) == 1 {
 				return nil, internal.Errorf("received invalid data. m[0]: %s, err: %w", m[0], err)
-			} else if len(m) != 2 {
+			} else if len(m) != redisBrpopValidLength {
 				return nil, internal.Errorf("received invalid data. err: %w", err)
 			}
 

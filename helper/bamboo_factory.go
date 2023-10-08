@@ -99,7 +99,7 @@ func (f *bambooFactory) CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.
 			Brokers:  cfg.Consumer.Kafka.Brokers,
 			GroupID:  cfg.Consumer.Kafka.GroupID,
 			Topic:    cfg.Consumer.Kafka.Topic,
-			MaxBytes: 10e6, // 10MB
+			MaxBytes: cfg.Consumer.Kafka.MaxBytes, // 10MB
 		}
 
 		createBambooRequestConsumerFunc = func(ctx context.Context) bamboo.BambooRequestConsumer {

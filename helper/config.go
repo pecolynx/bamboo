@@ -55,9 +55,10 @@ type ConsumerConfig struct {
 }
 
 type KafkaConsumerConfig struct {
-	Brokers []string `yaml:"brokers" validate:"required"`
-	GroupID string   `yaml:"groupId" validate:"required"`
-	Topic   string   `yaml:"topic" validate:"required"`
+	Brokers  []string `yaml:"brokers" validate:"required"`
+	GroupID  string   `yaml:"groupId" validate:"required"`
+	Topic    string   `yaml:"topic" validate:"required"`
+	MaxBytes int      `yaml:"maxBytes" validate:"required"`
 }
 
 type RedisConsumerConfig struct {

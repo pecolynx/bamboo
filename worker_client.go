@@ -141,6 +141,10 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 			case pb.ResponseType_DATA:
 				c1 <- ByteArreayResult{Value: resp.Data, Error: nil}
 				return
+			case pb.ResponseType_ABORTED:
+			case pb.ResponseType_ACCEPTED:
+			case pb.ResponseType_INTERNAL_ERROR:
+			case pb.ResponseType_INVALID_ARGUMENT:
 			}
 		}
 	}()
