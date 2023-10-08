@@ -36,24 +36,22 @@ func (s *redisBambooResultSubscriber) OpenSubscribeConnection(ctx context.Contex
 	pubsub := s.subscriber.Subscribe(ctx, resultChannel)
 
 	subscribeFunc := func(ctx context.Context) (*pb.WorkerResponse, error) {
-		for {
-			msg, err := pubsub.ReceiveMessage(ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			respBytes, err := base64.StdEncoding.DecodeString(msg.Payload)
-			if err != nil {
-				return nil, err
-			}
-
-			resp := pb.WorkerResponse{}
-			if err := proto.Unmarshal(respBytes, &resp); err != nil {
-				return nil, err
-			}
-
-			return &resp, nil
+		msg, err := pubsub.ReceiveMessage(ctx)
+		if err != nil {
+			return nil, err
 		}
+
+		respBytes, err := base64.StdEncoding.DecodeString(msg.Payload)
+		if err != nil {
+			return nil, err
+		}
+
+		resp := pb.WorkerResponse{}
+		if err := proto.Unmarshal(respBytes, &resp); err != nil {
+			return nil, err
+		}
+
+		return &resp, nil
 	}
 
 	closeSubscribeConnectionFunc := func(ctx context.Context) error {
