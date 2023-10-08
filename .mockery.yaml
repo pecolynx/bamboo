@@ -1,3 +1,4 @@
+---
 with-expecter: true
 
 mockname: "{{.InterfaceName}}"
