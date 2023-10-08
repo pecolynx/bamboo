@@ -1,6 +1,8 @@
 ---
 on: [pull_request]
 name: Reviewdog
+permissions:
+  pull-requests: write
 jobs:
   golang_1:
     strategy:
