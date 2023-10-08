@@ -32,7 +32,7 @@ jobs:
         if: steps.changed-files-specific.outputs.any_changed == 'true'
         uses: reviewdog/action-golangci-lint@v2
         with:
-          github_token: ${{ secrets.REVIEWDOG_TOKEN }}
+          github_token: ${{ secrets.github_token  }}
           reporter: github-pr-review
           golangci_lint_flags: "--config=${{ github.workspace }}/.github/.golangci.yml --disable-all -E staticcheck --timeout=10m"
           tool_name: staticcheck
