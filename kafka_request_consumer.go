@@ -29,7 +29,7 @@ func NewKafkaBambooRequestConsumer(consumerOptions kafka.ReaderConfig, requestWa
 }
 
 func (c *kafkaBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerParameter, error) {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerKey)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerContextKey)
 
 	for {
 		select {

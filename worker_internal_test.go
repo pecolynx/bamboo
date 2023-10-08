@@ -67,14 +67,14 @@ func Test_bambooWorker_run(t *testing.T) {
 	logConfigFunc := func(ctx context.Context, headers map[string]string) context.Context {
 		for k, v := range headers {
 			if k == sloghelper.RequestIDKey {
-				ctx = context.WithValue(ctx, sloghelper.RequestIDKey, v)
+				ctx = sloghelper.WithValue(ctx, sloghelper.RequestIDContextKey, v)
 			}
 		}
 		return ctx
 	}
 
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooWorkerLoggerKey)
+	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, sloghelper.BambooWorkerLoggerContextKey)
 
 	req := pb.WorkerParameter{
 		Headers: map[string]string{
@@ -164,12 +164,12 @@ func Test_bambooWorker_run(t *testing.T) {
 
 func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooWorkerLoggerKey)
+	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, sloghelper.BambooWorkerLoggerContextKey)
 
 	logConfigFunc := func(ctx context.Context, headers map[string]string) context.Context {
 		for k, v := range headers {
 			if k == sloghelper.RequestIDKey {
-				ctx = context.WithValue(ctx, sloghelper.RequestIDKey, v)
+				ctx = sloghelper.WithValue(ctx, sloghelper.RequestIDContextKey, v)
 			}
 		}
 		return ctx
@@ -262,7 +262,7 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 			logger := slog.New(&sloghelper.BambooHandler{Handler: slog.NewJSONHandler(&stringList, &slog.HandlerOptions{
 				Level: slog.LevelDebug,
 			})})
-			sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerKey] = logger
+			sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerContextKey] = logger
 
 			// given
 			req := pb.WorkerParameter{

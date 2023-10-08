@@ -22,8 +22,8 @@ func NewGoroutineBambooRequestConsumer(queue <-chan []byte) BambooRequestConsume
 }
 
 func (c *goroutineBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerParameter, error) {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerKey)
-	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooRequestConsumerLoggerKey)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerContextKey)
+	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, sloghelper.BambooRequestConsumerLoggerContextKey)
 	logger.DebugContext(ctx, "start consuming loop")
 
 	for {

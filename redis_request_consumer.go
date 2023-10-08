@@ -30,7 +30,7 @@ func NewRedisBambooRequestConsumer(consumerOptions *redis.UniversalOptions, cons
 }
 
 func (c *redisBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerParameter, error) {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerKey)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerContextKey)
 
 	for {
 		select {

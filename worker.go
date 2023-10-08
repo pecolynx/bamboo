@@ -59,8 +59,8 @@ func (w *bambooWorker) ping(ctx context.Context) error {
 }
 
 func (w *bambooWorker) Run(ctx context.Context) error {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerKey)
-	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooWorkerLoggerKey)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerContextKey)
+	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerLoggerContextKey)
 
 	workers := make([]internal.Worker, w.numWorkers)
 	for i := 0; i < w.numWorkers; i++ {
@@ -85,7 +85,7 @@ func (w *bambooWorker) Run(ctx context.Context) error {
 }
 
 func (w *bambooWorker) run(ctx context.Context) error {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerKey)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerContextKey)
 	logger.DebugContext(ctx, "run")
 	if err := w.ping(ctx); err != nil {
 		return internal.Errorf("ping. err: %w", err)
@@ -110,7 +110,7 @@ func (w *bambooWorker) run(ctx context.Context) error {
 }
 
 func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consumer BambooRequestConsumer, worker chan<- internal.Job) error {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerKey)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerContextKey)
 	logger.DebugContext(ctx, "worker is ready")
 
 	req, err := consumer.Consume(ctx)

@@ -14,15 +14,24 @@ var (
 	LoggerNameKey = "bamboo_logger_name"
 )
 
+type ContextKey string
+
+const (
+	RequestIDContextKey  ContextKey = "RequestIDContextKey"
+	LoggerNameContextKey ContextKey = "LoggerNameContextKey"
+)
+
 func (h *BambooHandler) Handle(ctx context.Context, record slog.Record) error {
-	requestID, ok := ctx.Value(RequestIDKey).(string)
+	requestID, ok := ctx.Value(RequestIDContextKey).(string)
 	if ok {
 		record.AddAttrs(slog.String(RequestIDKey, requestID))
 	}
-	loggerName, ok := ctx.Value(LoggerNameKey).(string)
+
+	loggerName, ok := ctx.Value(LoggerNameContextKey).(ContextKey)
 	if ok {
-		record.AddAttrs(slog.String(LoggerNameKey, loggerName))
+		record.AddAttrs(slog.String(LoggerNameKey, string(loggerName)))
 	}
+
 	return h.Handler.Handle(ctx, record)
 }
 

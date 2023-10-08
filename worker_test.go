@@ -60,14 +60,14 @@ func initLog() stringList {
 	})})
 
 	sloghelper.BambooLoggers["bamboo_test"] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerClientLoggerKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooHeartbeatPublisherLoggerKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerKey] = logger
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerContextKey] = logger
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerClientLoggerContextKey] = logger
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerContextKey] = logger
+	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerContextKey] = logger
+	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerContextKey] = logger
+	sloghelper.BambooLoggers[sloghelper.BambooHeartbeatPublisherLoggerContextKey] = logger
+	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerContextKey] = logger
+	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerContextKey] = logger
 
 	return stringList
 }
@@ -76,7 +76,7 @@ var (
 	logConfigFunc = func(ctx context.Context, headers map[string]string) context.Context {
 		for k, v := range headers {
 			if k == sloghelper.RequestIDKey {
-				ctx = context.WithValue(ctx, sloghelper.RequestIDKey, v)
+				ctx = sloghelper.WithValue(ctx, sloghelper.RequestIDContextKey, v)
 			}
 		}
 		return ctx
@@ -84,7 +84,7 @@ var (
 
 	workerFunc = func(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
 		logger := sloghelper.FromContext(ctx, "bamboo_test")
-		ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, "bamboo_test")
+		ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, "bamboo_test")
 
 		req := pb_test.WorkerTestParameter{}
 		if err := proto.Unmarshal(reqBytes, &req); err != nil {
@@ -164,7 +164,7 @@ func Test_WorkerClient_Call(t *testing.T) {
 		{
 			name: "Aborted",
 			inputs: inputs{
-				heartbeatIntervalMSec:   200,
+				heartbeatIntervalMSec:   100,
 				jobTimeoutMSec:          800,
 				waitMSec:                400,
 				emptyHeartbeatPublisher: true,

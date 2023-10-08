@@ -23,7 +23,7 @@ import (
 )
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/goroutine-app")
-var appName string
+var appName sloghelper.ContextKey
 
 type expr struct {
 	workerClients map[string]bamboo.BambooWorkerClient
@@ -94,10 +94,10 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
-	appName = cfg.App.Name
+	appName = sloghelper.ContextKey(cfg.App.Name)
 
 	logger := sloghelper.FromContext(ctx, appName)
-	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, cfg.App.Name)
+	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, cfg.App.Name)
 
 	factory := helper.NewBambooFactory()
 	worker, err := factory.CreateBambooWorker(cfg.Worker, workerFunc)
@@ -133,7 +133,7 @@ func run(ctx context.Context, worker bamboo.BambooWorker, workerClients map[stri
 		done := make(chan interface{})
 
 		go func() {
-			spanCtx, span := tracer.Start(ctx, appName)
+			spanCtx, span := tracer.Start(ctx, "gorouting-app")
 			defer span.End()
 
 			requestID, err := uuid.NewRandom()
@@ -141,7 +141,7 @@ func run(ctx context.Context, worker bamboo.BambooWorker, workerClients map[stri
 				panic(err)
 			}
 
-			logCtx := context.WithValue(spanCtx, sloghelper.RequestIDKey, requestID.String())
+			logCtx := sloghelper.WithValue(spanCtx, sloghelper.RequestIDContextKey, requestID.String())
 
 			expr := expr{workerClients: workerClients}
 
@@ -203,7 +203,7 @@ func initialize(ctx context.Context, appMode string) (*Config, *sdktrace.TracerP
 	}
 
 	// init log
-	if err := helper.InitLog(cfg.App.Name, cfg.Log); err != nil {
+	if err := helper.InitLog(sloghelper.ContextKey(cfg.App.Name), cfg.Log); err != nil {
 		panic(err)
 	}
 

@@ -9,30 +9,30 @@ import (
 )
 
 var (
-	BambooLoggers                     map[string]*slog.Logger
-	BambooWorkerLoggerKey             = "BambooWorker"
-	BambooWorkerClientLoggerKey       = "BambooWorkerClient"
-	BambooWorkerJobLoggerKey          = "BambooWorkerJob"
-	BambooHeartbeatPublisherLoggerKey = "BambooHeartbeatPublisher"
-	BambooRequestConsumerLoggerKey    = "BambooRequestConsumer"
-	BambooRequestProducerLoggerKey    = "BambooRequestProducer"
-	BambooResultPublisherLoggerKey    = "BambooResultPublisher"
-	BambooResultSubscriberLoggerKey   = "BambooResultSubscriber"
-	keys                              = []string{
-		BambooWorkerLoggerKey,
-		BambooWorkerClientLoggerKey,
-		BambooWorkerJobLoggerKey,
-		BambooHeartbeatPublisherLoggerKey,
-		BambooRequestConsumerLoggerKey,
-		BambooRequestProducerLoggerKey,
-		BambooResultPublisherLoggerKey,
-		BambooResultSubscriberLoggerKey,
+	BambooLoggers                            map[ContextKey]*slog.Logger
+	BambooWorkerLoggerContextKey             ContextKey = "BambooWorker"
+	BambooWorkerClientLoggerContextKey       ContextKey = "BambooWorkerClient"
+	BambooWorkerJobLoggerContextKey          ContextKey = "BambooWorkerJob"
+	BambooHeartbeatPublisherLoggerContextKey ContextKey = "BambooHeartbeatPublisher"
+	BambooRequestConsumerLoggerContextKey    ContextKey = "BambooRequestConsumer"
+	BambooRequestProducerLoggerContextKey    ContextKey = "BambooRequestProducer"
+	BambooResultPublisherLoggerContextKey    ContextKey = "BambooResultPublisher"
+	BambooResultSubscriberLoggerContextKey   ContextKey = "BambooResultSubscriber"
+	keys                                                = []ContextKey{
+		BambooWorkerLoggerContextKey,
+		BambooWorkerClientLoggerContextKey,
+		BambooWorkerJobLoggerContextKey,
+		BambooHeartbeatPublisherLoggerContextKey,
+		BambooRequestConsumerLoggerContextKey,
+		BambooRequestProducerLoggerContextKey,
+		BambooResultPublisherLoggerContextKey,
+		BambooResultSubscriberLoggerContextKey,
 	}
 	lock sync.Mutex
 )
 
 func init() {
-	BambooLoggers = make(map[string]*slog.Logger)
+	BambooLoggers = make(map[ContextKey]*slog.Logger)
 
 	for _, key := range keys {
 		BambooLoggers[key] = slog.New(&BambooHandler{Handler: slog.NewJSONHandler(os.Stdout, nil)})
@@ -49,8 +49,16 @@ func Init(ctx context.Context) context.Context {
 	return ctx
 }
 
+func WithValue(ctx context.Context, key ContextKey, val any) context.Context {
+	return context.WithValue(ctx, key, val)
+}
+
+func WithLoggerName(ctx context.Context, val ContextKey) context.Context {
+	return context.WithValue(ctx, LoggerNameContextKey, string(val))
+}
+
 // FromContext Gets the logger from context
-func FromContext(ctx context.Context, key string) *slog.Logger {
+func FromContext(ctx context.Context, key ContextKey) *slog.Logger {
 	if ctx == nil {
 		panic("nil context")
 	}

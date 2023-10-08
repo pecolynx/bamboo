@@ -33,8 +33,8 @@ func (h *goroutineBambooHeartbeatPublisher) Ping(ctx context.Context) error {
 }
 
 func (h *goroutineBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, done <-chan interface{}, aborted <-chan interface{}) error {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooHeartbeatPublisherLoggerKey)
-	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooHeartbeatPublisherLoggerKey)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooHeartbeatPublisherLoggerContextKey)
+	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, sloghelper.BambooHeartbeatPublisherLoggerContextKey)
 
 	pubsub, err := h.pubsubMap.GetChannel(resultChannel)
 	if err != nil {

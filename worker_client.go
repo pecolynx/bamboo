@@ -40,8 +40,8 @@ func (c *bambooWorkerClient) Close(ctx context.Context) {
 }
 
 func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, param []byte) ([]byte, error) {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerKey)
-	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, sloghelper.BambooWorkerClientLoggerKey)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
+	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, sloghelper.BambooWorkerClientLoggerContextKey)
 	logger.DebugContext(ctx, "Call")
 
 	resultChannel, err := c.newResultChannelString()
@@ -92,7 +92,7 @@ func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec int
 }
 
 func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int) ([]byte, error) {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerKey)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
 	logger.DebugContext(ctx, "subscribe")
 
 	heartbeat := make(chan int64)
@@ -194,7 +194,7 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 }
 
 func (c *bambooWorkerClient) startTimer(ctx context.Context, timeoutTime time.Duration) <-chan interface{} {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooResultSubscriberLoggerKey)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooResultSubscriberLoggerContextKey)
 	if timeoutTime != 0 {
 		timedout := make(chan interface{})
 		time.AfterFunc(timeoutTime, func() {

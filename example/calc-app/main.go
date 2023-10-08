@@ -20,7 +20,7 @@ import (
 )
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/calc-app")
-var appName string
+var appName sloghelper.ContextKey
 
 type expr struct {
 	workerClients map[string]bamboo.BambooWorkerClient
@@ -91,24 +91,24 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
-	appName = cfg.App.Name
+	appName = sloghelper.ContextKey(cfg.App.Name)
 
 	debugHandler := &sloghelper.BambooHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})}
 
-	sloghelper.BambooLoggers[cfg.App.Name] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerClientLoggerKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[appName] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerContextKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerContextKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerClientLoggerContextKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerContextKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerContextKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerContextKey] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerContextKey] = slog.New(debugHandler)
 	sloghelper.Init(ctx)
 
 	logger := sloghelper.FromContext(ctx, appName)
-	ctx = context.WithValue(ctx, sloghelper.LoggerNameKey, cfg.App.Name)
+	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, cfg.App.Name)
 
 	factory := helper.NewBambooFactory()
 
@@ -122,7 +122,7 @@ func main() {
 		workerClients[k] = workerClient
 	}
 
-	logger.InfoContext(ctx, fmt.Sprintf("Started %s", appName))
+	logger.InfoContext(ctx, fmt.Sprintf("Started %s", cfg.App.Name))
 
 	wg := sync.WaitGroup{}
 	for i := 0; i < 1; i++ {
@@ -130,7 +130,7 @@ func main() {
 		go func() {
 			defer wg.Done()
 
-			spanCtx, span := tracer.Start(ctx, appName)
+			spanCtx, span := tracer.Start(ctx, cfg.App.Name)
 			defer span.End()
 
 			requestID, err := uuid.NewRandom()
@@ -138,7 +138,7 @@ func main() {
 				panic(err)
 			}
 
-			logCtx := context.WithValue(spanCtx, sloghelper.RequestIDKey, requestID.String())
+			logCtx := sloghelper.WithValue(spanCtx, sloghelper.RequestIDContextKey, requestID.String())
 
 			expr := expr{workerClients: workerClients}
 
@@ -168,7 +168,7 @@ func initialize(ctx context.Context, appMode string) (*Config, *sdktrace.TracerP
 	}
 
 	// init log
-	if err := helper.InitLog(cfg.App.Name, cfg.Log); err != nil {
+	if err := helper.InitLog(sloghelper.ContextKey(cfg.App.Name), cfg.Log); err != nil {
 		panic(err)
 	}
 

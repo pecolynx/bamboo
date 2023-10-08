@@ -13,7 +13,7 @@ type LogConfig struct {
 	Level string `yaml:"level"`
 }
 
-func InitLog(appName string, cfg *LogConfig) error {
+func InitLog(appName sloghelper.ContextKey, cfg *LogConfig) error {
 	var logLevel slog.Level
 
 	switch strings.ToLower(cfg.Level) {
@@ -35,12 +35,12 @@ func InitLog(appName string, cfg *LogConfig) error {
 	})}
 
 	sloghelper.BambooLoggers[appName] = slog.New(handler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerKey] = slog.New(handler)
-	sloghelper.BambooLoggers[sloghelper.BambooHeartbeatPublisherLoggerKey] = slog.New(handler)
-	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerKey] = slog.New(handler)
-	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerKey] = slog.New(handler)
-	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerKey] = slog.New(handler)
-	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerKey] = slog.New(handler)
+	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerContextKey] = slog.New(handler)
+	sloghelper.BambooLoggers[sloghelper.BambooHeartbeatPublisherLoggerContextKey] = slog.New(handler)
+	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerContextKey] = slog.New(handler)
+	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerContextKey] = slog.New(handler)
+	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerContextKey] = slog.New(handler)
+	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerContextKey] = slog.New(handler)
 
 	return nil
 }
