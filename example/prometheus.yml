@@ -12,12 +12,12 @@ alerting:
   alertmanagers:
     - scheme: http
       static_configs:
-      - targets:
-        - alertmanager:9093
+        - targets:
+          - alertmanager:9093
 
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets:
-        -  dev-prometheus:9090
-        -  localhost:8081
+        - dev-prometheus:9090
+        - localhost:8081
