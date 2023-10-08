@@ -146,6 +146,7 @@ func Test_bambooWorker_run(t *testing.T) {
 				heartbeatPublisher:        &heartbeatPublisher,
 				logConfigFunc:             logConfigFunc,
 				workerPool:                workerPool,
+				metricsEventHandler:       NewEmptyEventHandler(),
 			}
 
 			// time.AfterFunc(100*time.Millisecond, cancel)
@@ -269,8 +270,9 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 			heartbeatPublisher.On("Run", anythingOfContext, "RESULT-CHANNEL", tt.inputs.heartbeatIntervalMSec, anythingOfChanIn, anythingOfChanIn).Return(tt.inputs.heartbeatPublishderRunError)
 
 			worker := bambooWorker{
-				heartbeatPublisher: &heartbeatPublisher,
-				logConfigFunc:      logConfigFunc,
+				heartbeatPublisher:  &heartbeatPublisher,
+				logConfigFunc:       logConfigFunc,
+				metricsEventHandler: NewEmptyEventHandler(),
 			}
 
 			// when
