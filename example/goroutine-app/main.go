@@ -19,11 +19,10 @@ import (
 	"github.com/pecolynx/bamboo"
 	"github.com/pecolynx/bamboo/helper"
 	"github.com/pecolynx/bamboo/internal"
-	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/goroutine-app")
-var appNameContextKey sloghelper.ContextKey
+var appNameContextKey bamboo.ContextKey
 
 type expr struct {
 	workerClients map[string]bamboo.BambooWorkerClient
@@ -41,11 +40,11 @@ func (e *expr) getError() error {
 }
 
 func (e *expr) workerGoroutine(ctx context.Context, x, y int) int {
-	logger := sloghelper.FromContext(ctx, appNameContextKey)
+	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 
-	request_id, _ := ctx.Value(sloghelper.RequestIDKey).(string)
+	request_id, _ := ctx.Value(bamboo.RequestIDKey).(string)
 	headers := map[string]string{
-		sloghelper.RequestIDKey: request_id,
+		bamboo.RequestIDKey: request_id,
 	}
 
 	if err := e.getError(); err != nil {
@@ -94,10 +93,10 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
-	appNameContextKey = sloghelper.ContextKey(cfg.App.Name)
+	appNameContextKey = bamboo.ContextKey(cfg.App.Name)
 
-	logger := sloghelper.FromContext(ctx, appNameContextKey)
-	ctx = sloghelper.WithLoggerName(ctx, appNameContextKey)
+	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
+	ctx = bamboo.WithLoggerName(ctx, appNameContextKey)
 
 	factory := helper.NewBambooFactory()
 	worker, err := factory.CreateBambooWorker(cfg.Worker, workerFunc)
@@ -127,7 +126,7 @@ func main() {
 func run(ctx context.Context, worker bamboo.BambooWorker, workerClients map[string]bamboo.BambooWorkerClient) int {
 	ctx, cancel := context.WithCancel(ctx)
 	eg, ctx := errgroup.WithContext(ctx)
-	logger := sloghelper.FromContext(ctx, appNameContextKey)
+	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 
 	eg.Go(func() error {
 		done := make(chan interface{})
@@ -141,7 +140,7 @@ func run(ctx context.Context, worker bamboo.BambooWorker, workerClients map[stri
 				panic(err)
 			}
 
-			logCtx := sloghelper.WithValue(spanCtx, sloghelper.RequestIDContextKey, requestID.String())
+			logCtx := bamboo.WithValue(spanCtx, bamboo.RequestIDContextKey, requestID.String())
 
 			expr := expr{workerClients: workerClients}
 
@@ -203,7 +202,7 @@ func initialize(ctx context.Context, appMode string) (*Config, *sdktrace.TracerP
 	}
 
 	// init log
-	if err := helper.InitLog(sloghelper.ContextKey(cfg.App.Name), cfg.Log); err != nil {
+	if err := helper.InitLog(bamboo.ContextKey(cfg.App.Name), cfg.Log); err != nil {
 		panic(err)
 	}
 
@@ -219,7 +218,7 @@ func initialize(ctx context.Context, appMode string) (*Config, *sdktrace.TracerP
 }
 
 func workerFunc(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
-	logger := sloghelper.FromContext(ctx, appNameContextKey)
+	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 
 	req := GoroutineAppParameter{}
 	if err := proto.Unmarshal(reqBytes, &req); err != nil {

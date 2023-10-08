@@ -9,7 +9,7 @@ worker:
       addrs:
         - "localhost:6379"
       channel: redis-redis
-      requestWaitTimeoutMSec: 5
+      requestWaitTimeoutMSec: 5000
   publisher:
     type: redis
     redis:

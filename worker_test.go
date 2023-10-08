@@ -16,10 +16,9 @@ import (
 	"github.com/pecolynx/bamboo"
 	"github.com/pecolynx/bamboo/internal"
 	pb_test "github.com/pecolynx/bamboo/proto_test"
-	"github.com/pecolynx/bamboo/sloghelper"
 )
 
-var testAppNameContextKey sloghelper.ContextKey = sloghelper.ContextKey("bamboo_test")
+var testAppNameContextKey bamboo.ContextKey = bamboo.ContextKey("bamboo_test")
 
 // type logStruct struct {
 // 	Level      string `json:"level"`
@@ -59,19 +58,19 @@ func (h *emptyBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel s
 func initLog() stringList {
 	stringList := stringList{list: make([]string, 0), writer: os.Stdout}
 
-	logger := slog.New(&sloghelper.BambooHandler{Handler: slog.NewJSONHandler(&stringList, &slog.HandlerOptions{
+	logger := slog.New(&bamboo.BambooLogHandler{Handler: slog.NewJSONHandler(&stringList, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})})
 
-	sloghelper.BambooLoggers[testAppNameContextKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerContextKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerClientLoggerContextKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerContextKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerContextKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerContextKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooHeartbeatPublisherLoggerContextKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerContextKey] = logger
-	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerContextKey] = logger
+	bamboo.BambooLoggers[testAppNameContextKey] = logger
+	bamboo.BambooLoggers[bamboo.BambooWorkerLoggerContextKey] = logger
+	bamboo.BambooLoggers[bamboo.BambooWorkerClientLoggerContextKey] = logger
+	bamboo.BambooLoggers[bamboo.BambooWorkerJobLoggerContextKey] = logger
+	bamboo.BambooLoggers[bamboo.BambooRequestProducerLoggerContextKey] = logger
+	bamboo.BambooLoggers[bamboo.BambooRequestConsumerLoggerContextKey] = logger
+	bamboo.BambooLoggers[bamboo.BambooHeartbeatPublisherLoggerContextKey] = logger
+	bamboo.BambooLoggers[bamboo.BambooResultPublisherLoggerContextKey] = logger
+	bamboo.BambooLoggers[bamboo.BambooResultSubscriberLoggerContextKey] = logger
 
 	return stringList
 }
@@ -79,16 +78,16 @@ func initLog() stringList {
 var (
 	logConfigFunc = func(ctx context.Context, headers map[string]string) context.Context {
 		for k, v := range headers {
-			if k == sloghelper.RequestIDKey {
-				ctx = sloghelper.WithValue(ctx, sloghelper.RequestIDContextKey, v)
+			if k == bamboo.RequestIDKey {
+				ctx = bamboo.WithValue(ctx, bamboo.RequestIDContextKey, v)
 			}
 		}
 		return ctx
 	}
 
 	workerFunc = func(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
-		logger := sloghelper.FromContext(ctx, testAppNameContextKey)
-		ctx = sloghelper.WithLoggerName(ctx, testAppNameContextKey)
+		logger := bamboo.GetLoggerFromContext(ctx, testAppNameContextKey)
+		ctx = bamboo.WithLoggerName(ctx, testAppNameContextKey)
 
 		req := pb_test.WorkerTestParameter{}
 		if err := proto.Unmarshal(reqBytes, &req); err != nil {
@@ -108,6 +107,7 @@ var (
 
 		return respBytes, nil
 	}
+	emptyEventHandler = bamboo.NewEmptyEventHandler()
 )
 
 func Test_WorkerClient_Call(t *testing.T) {
@@ -116,7 +116,7 @@ func Test_WorkerClient_Call(t *testing.T) {
 	defer cancel()
 	initLog()
 	internal.UseXerrorsErrorf()
-	logger := sloghelper.FromContext(ctx, "bamboo_test")
+	logger := bamboo.GetLoggerFromContext(ctx, "bamboo_test")
 
 	type inputs struct {
 		heartbeatIntervalMSec   int
@@ -195,7 +195,7 @@ func Test_WorkerClient_Call(t *testing.T) {
 			requestProducer := bamboo.NewGoroutineBambooRequestProducer(ctx, "WORKER-NAME", queue)
 			resultSubscriber := bamboo.NewGoroutineBambooResultSubscriber(ctx, "WORKER-NAME", pubsubMap)
 			workerClient := bamboo.NewBambooWorkerClient(requestProducer, resultSubscriber)
-			worker, err := bamboo.NewBambooWorker(createBambooRequestConsumerFunc, resultPublisher, heartbeatPublisher, workerFunc, 1, logConfigFunc)
+			worker, err := bamboo.NewBambooWorker(createBambooRequestConsumerFunc, resultPublisher, heartbeatPublisher, workerFunc, 1, logConfigFunc, emptyEventHandler)
 			require.Nil(t, err)
 
 			go func() {

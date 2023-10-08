@@ -40,3 +40,8 @@ docker-up:
 .PHONY: lint
 docker-down:
 	@docker compose -f ./docker-compose.yml down
+
+docker-build:
+	@pushd ./worker-redis-redis && \
+	docker build -t worker-redis-redis ./ && \
+	popd

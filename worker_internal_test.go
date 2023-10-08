@@ -11,7 +11,7 @@ import (
 	"github.com/pecolynx/bamboo/internal"
 	mocks "github.com/pecolynx/bamboo/mocks"
 	pb "github.com/pecolynx/bamboo/proto"
-	"github.com/pecolynx/bamboo/sloghelper"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -29,8 +29,8 @@ var (
 
 	logConfigFunc = func(ctx context.Context, headers map[string]string) context.Context {
 		for k, v := range headers {
-			if k == sloghelper.RequestIDKey {
-				ctx = sloghelper.WithValue(ctx, sloghelper.RequestIDContextKey, v)
+			if k == RequestIDKey {
+				ctx = WithValue(ctx, RequestIDContextKey, v)
 			}
 		}
 		return ctx
@@ -75,7 +75,7 @@ func (s *stringList) Write(p []byte) (n int, err error) {
 
 func Test_bambooWorker_run(t *testing.T) {
 	ctx := context.Background()
-	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerLoggerContextKey)
+	ctx = WithLoggerName(ctx, BambooWorkerLoggerContextKey)
 
 	req := pb.WorkerParameter{
 		Headers: map[string]string{
@@ -163,7 +163,7 @@ func Test_bambooWorker_run(t *testing.T) {
 
 func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 	ctx := context.Background()
-	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerLoggerContextKey)
+	ctx = WithLoggerName(ctx, BambooWorkerLoggerContextKey)
 
 	type inputs struct {
 		heartbeatIntervalMSec       int
@@ -249,10 +249,10 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			jobQueue := make(chan internal.Job, 1)
 			stringList := stringList{list: make([]string, 0)}
-			logger := slog.New(&sloghelper.BambooHandler{Handler: slog.NewJSONHandler(&stringList, &slog.HandlerOptions{
+			logger := slog.New(&BambooLogHandler{Handler: slog.NewJSONHandler(&stringList, &slog.HandlerOptions{
 				Level: slog.LevelDebug,
 			})})
-			sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerContextKey] = logger
+			BambooLoggers[BambooWorkerLoggerContextKey] = logger
 
 			// given
 			req := pb.WorkerParameter{

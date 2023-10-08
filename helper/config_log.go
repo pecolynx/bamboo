@@ -6,14 +6,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pecolynx/bamboo/sloghelper"
+	"github.com/pecolynx/bamboo"
 )
 
 type LogConfig struct {
 	Level string `yaml:"level"`
 }
 
-func InitLog(appName sloghelper.ContextKey, cfg *LogConfig) error {
+func InitLog(appName bamboo.ContextKey, cfg *LogConfig) error {
 	var logLevel slog.Level
 
 	switch strings.ToLower(cfg.Level) {
@@ -30,17 +30,17 @@ func InitLog(appName sloghelper.ContextKey, cfg *LogConfig) error {
 		logLevel = slog.LevelWarn
 	}
 
-	handler := &sloghelper.BambooHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	handler := &bamboo.BambooLogHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: logLevel,
 	})}
 
-	sloghelper.BambooLoggers[appName] = slog.New(handler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerContextKey] = slog.New(handler)
-	sloghelper.BambooLoggers[sloghelper.BambooHeartbeatPublisherLoggerContextKey] = slog.New(handler)
-	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerContextKey] = slog.New(handler)
-	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerContextKey] = slog.New(handler)
-	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerContextKey] = slog.New(handler)
-	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerContextKey] = slog.New(handler)
+	bamboo.BambooLoggers[appName] = slog.New(handler)
+	bamboo.BambooLoggers[bamboo.BambooWorkerLoggerContextKey] = slog.New(handler)
+	bamboo.BambooLoggers[bamboo.BambooHeartbeatPublisherLoggerContextKey] = slog.New(handler)
+	bamboo.BambooLoggers[bamboo.BambooRequestProducerLoggerContextKey] = slog.New(handler)
+	bamboo.BambooLoggers[bamboo.BambooRequestConsumerLoggerContextKey] = slog.New(handler)
+	bamboo.BambooLoggers[bamboo.BambooResultPublisherLoggerContextKey] = slog.New(handler)
+	bamboo.BambooLoggers[bamboo.BambooResultSubscriberLoggerContextKey] = slog.New(handler)
 
 	return nil
 }

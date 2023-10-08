@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 
 	"github.com/pecolynx/bamboo/internal"
-	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type bambooWorker struct {
@@ -21,9 +20,10 @@ type bambooWorker struct {
 	numWorkers                int
 	logConfigFunc             LogConfigFunc
 	workerPool                chan chan internal.Job
+	metricsEventHandler       MetricsEventHandler
 }
 
-func NewBambooWorker(createRequestConsumerFunc CreateBambooRequestConsumerFunc, resultPublisher BambooResultPublisher, heartbeatPublisher BambooHeartbeatPublisher, workerFunc WorkerFunc, numWorkers int, logConfigFunc LogConfigFunc) (BambooWorker, error) {
+func NewBambooWorker(createRequestConsumerFunc CreateBambooRequestConsumerFunc, resultPublisher BambooResultPublisher, heartbeatPublisher BambooHeartbeatPublisher, workerFunc WorkerFunc, numWorkers int, logConfigFunc LogConfigFunc, metricsEventHandler MetricsEventHandler) (BambooWorker, error) {
 	if resultPublisher == nil {
 		return nil, errors.New("nil")
 	}
@@ -36,6 +36,7 @@ func NewBambooWorker(createRequestConsumerFunc CreateBambooRequestConsumerFunc, 
 		numWorkers:                numWorkers,
 		logConfigFunc:             logConfigFunc,
 		workerPool:                make(chan chan internal.Job),
+		metricsEventHandler:       metricsEventHandler,
 	}, nil
 }
 
@@ -58,8 +59,8 @@ func (w *bambooWorker) ping(ctx context.Context) error {
 }
 
 func (w *bambooWorker) Run(ctx context.Context) error {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerContextKey)
-	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooWorkerLoggerContextKey)
+	ctx = WithLoggerName(ctx, BambooWorkerLoggerContextKey)
 
 	workers := make([]internal.Worker, w.numWorkers)
 	for i := 0; i < w.numWorkers; i++ {
@@ -84,7 +85,7 @@ func (w *bambooWorker) Run(ctx context.Context) error {
 }
 
 func (w *bambooWorker) run(ctx context.Context) error {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooWorkerLoggerContextKey)
 	logger.DebugContext(ctx, "run")
 	if err := w.ping(ctx); err != nil {
 		return internal.Errorf("ping. err: %w", err)
@@ -109,7 +110,7 @@ func (w *bambooWorker) run(ctx context.Context) error {
 }
 
 func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consumer BambooRequestConsumer, worker chan<- internal.Job) error {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooWorkerLoggerContextKey)
 	logger.DebugContext(ctx, "worker is ready")
 
 	req, err := consumer.Consume(ctx)
@@ -119,6 +120,8 @@ func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consume
 		worker <- internal.NewEmptyJob()
 		return internal.Errorf("consumer.Consume. err: %w", err)
 	}
+
+	w.metricsEventHandler.OnReceiveRequest()
 
 	done := make(chan interface{})
 	aborted := make(chan interface{})
@@ -134,7 +137,7 @@ func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consume
 	}
 
 	var carrier propagation.MapCarrier = req.Carrier
-	job := NewWorkerJob(reqCtx, carrier, w.workerFunc, req.Headers, req.Data, w.resultPublisher, req.ResultChannel, done, aborted, w.logConfigFunc)
+	job := NewWorkerJob(reqCtx, carrier, w.workerFunc, req.Headers, req.Data, w.resultPublisher, req.ResultChannel, done, aborted, w.logConfigFunc, w.metricsEventHandler)
 
 	logger.DebugContext(ctx, "dispatch job to worker")
 	worker <- job

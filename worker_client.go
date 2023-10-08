@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
-	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type BambooWorkerClient interface {
@@ -40,8 +39,8 @@ func (c *bambooWorkerClient) Close(ctx context.Context) {
 }
 
 func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, param []byte) ([]byte, error) {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
-	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
+	ctx = WithLoggerName(ctx, BambooWorkerClientLoggerContextKey)
 	logger.DebugContext(ctx, "Call")
 
 	resultChannel, err := c.newResultChannelString()
@@ -92,7 +91,7 @@ func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec int
 }
 
 func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int) ([]byte, error) {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
 	logger.DebugContext(ctx, "subscribe")
 
 	heartbeat := make(chan int64)
@@ -144,7 +143,7 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 }
 
 func (c *bambooWorkerClient) subscribeLoop(ctx context.Context, subscribeFunc SubscribeFunc, result chan<- ByteArreayResult, heartbeat chan<- int64) {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
 
 	for {
 		resp, err := subscribeFunc(ctx)
@@ -173,7 +172,7 @@ func (c *bambooWorkerClient) subscribeLoop(ctx context.Context, subscribeFunc Su
 }
 
 func (c *bambooWorkerClient) startHeartbeatCheck(ctx context.Context, heartbeatIntervalMSec int, done <-chan struct{}, heartbeat <-chan int64, aborted chan<- struct{}) {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
 
 	go func() {
 		ticker := time.NewTicker(time.Duration(heartbeatIntervalMSec) * time.Millisecond)
@@ -209,7 +208,7 @@ func (c *bambooWorkerClient) startHeartbeatCheck(ctx context.Context, heartbeatI
 }
 
 func (c *bambooWorkerClient) startTimer(ctx context.Context, timeoutTime time.Duration) <-chan interface{} {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
 	if timeoutTime != 0 {
 		timedout := make(chan interface{})
 		time.AfterFunc(timeoutTime, func() {
