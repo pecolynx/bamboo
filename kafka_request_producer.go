@@ -5,10 +5,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/pecolynx/bamboo/internal"
+	pb "github.com/pecolynx/bamboo/proto"
 )
 
 type kafkaBambooRequestProducer struct {
@@ -17,15 +19,15 @@ type kafkaBambooRequestProducer struct {
 	propagator  propagation.TextMapPropagator
 }
 
-func NewKafkaBambooRequestProducer(ctx context.Context, workerName string, kafkaWriter *kafka.Writer, propagator propagation.TextMapPropagator) BambooRequestProducer {
+func NewKafkaBambooRequestProducer(ctx context.Context, workerName string, kafkaWriter *kafka.Writer) BambooRequestProducer {
 	return &kafkaBambooRequestProducer{
 		workerName:  workerName,
 		kafkaWriter: kafkaWriter,
-		propagator:  propagator,
+		propagator:  otel.GetTextMapPropagator(),
 	}
 }
 
-func (p *kafkaBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, data []byte) error {
+func (p *kafkaBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, data []byte) error {
 	carrier := propagation.MapCarrier{}
 
 	spanCtx, span := tracer.Start(ctx, p.workerName)
@@ -38,7 +40,7 @@ func (p *kafkaBambooRequestProducer) Produce(ctx context.Context, resultChannel 
 		return internal.Errorf("uuid.NewRandom. err: %w", err)
 	}
 
-	req := WorkerParameter{
+	req := pb.WorkerParameter{
 		Carrier:       carrier,
 		Headers:       headers,
 		ResultChannel: resultChannel,
@@ -58,6 +60,10 @@ func (p *kafkaBambooRequestProducer) Produce(ctx context.Context, resultChannel 
 		return internal.Errorf("kafkaWriter.WriteMessages. err: %w", err)
 	}
 
+	return nil
+}
+
+func (p *kafkaBambooRequestProducer) Ping(ctx context.Context) error {
 	return nil
 }
 

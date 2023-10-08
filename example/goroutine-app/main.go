@@ -2,15 +2,18 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/pecolynx/bamboo"
@@ -19,7 +22,7 @@ import (
 	"github.com/pecolynx/bamboo/sloghelper"
 )
 
-var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/calc-app")
+var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/goroutine-app")
 var appNameContextKey sloghelper.ContextKey
 
 type expr struct {
@@ -37,7 +40,7 @@ func (e *expr) getError() error {
 	return nil
 }
 
-func (e *expr) workerRedisRedis(ctx context.Context, x, y int) int {
+func (e *expr) workerGoroutine(ctx context.Context, x, y int) int {
 	logger := sloghelper.FromContext(ctx, appNameContextKey)
 
 	request_id, _ := ctx.Value(sloghelper.RequestIDKey).(string)
@@ -50,28 +53,28 @@ func (e *expr) workerRedisRedis(ctx context.Context, x, y int) int {
 		return 0
 	}
 
-	p1 := RedisRedisParameter{X: int32(x), Y: int32(y)}
+	p1 := GoroutineAppParameter{X: int32(x), Y: int32(y)}
 	paramBytes, err := proto.Marshal(&p1)
 	if err != nil {
 		e.setError(internal.Errorf("proto.Marshal. err: %w", err))
 		return 0
 	}
 
-	workerClient, ok := e.workerClients["worker-redis-redis"]
+	workerClient, ok := e.workerClients["worker-goroutine"]
 	if !ok {
-		e.setError(fmt.Errorf("worker client not found. name: %s", "worker-redis-redis"))
+		e.setError(fmt.Errorf("worker client not found. name: %s", "worker-goroutine"))
 		return 0
 	}
 
-	respBytes, err := workerClient.Call(ctx, 2, 7, headers, paramBytes)
+	respBytes, err := workerClient.Call(ctx, 0, 0, headers, paramBytes)
 	if err != nil {
-		e.setError(internal.Errorf("app.Call(worker-redis-redis). err: %w", err))
+		e.setError(internal.Errorf("app.Call(worker-goroutine). err: %w", err))
 		return 0
 	}
 
-	resp := RedisRedisResponse{}
+	resp := GoroutineAppResponse{}
 	if err := proto.Unmarshal(respBytes, &resp); err != nil {
-		e.setError(internal.Errorf("proto.Unmarshal. worker-redis-redis response is invalid. err: %w", err))
+		e.setError(internal.Errorf("proto.Unmarshal. worker-goroutine response is invalid. err: %w", err))
 		return 0
 	}
 
@@ -93,24 +96,14 @@ func main() {
 
 	appNameContextKey = sloghelper.ContextKey(cfg.App.Name)
 
-	debugHandler := &sloghelper.BambooHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	})}
-
-	sloghelper.BambooLoggers[appNameContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerClientLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.Init(ctx)
-
 	logger := sloghelper.FromContext(ctx, appNameContextKey)
 	ctx = sloghelper.WithLoggerName(ctx, appNameContextKey)
 
 	factory := helper.NewBambooFactory()
+	worker, err := factory.CreateBambooWorker(cfg.Worker, workerFunc)
+	if err != nil {
+		panic(err)
+	}
 
 	workerClients := map[string]bamboo.BambooWorkerClient{}
 	for k, v := range cfg.Workers {
@@ -124,13 +117,23 @@ func main() {
 
 	logger.InfoContext(ctx, fmt.Sprintf("Started %s", cfg.App.Name))
 
-	wg := sync.WaitGroup{}
-	for i := 0; i < 1; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	result := run(ctx, worker, workerClients)
+	time.Sleep(time.Second)
 
-			spanCtx, span := tracer.Start(ctx, cfg.App.Name)
+	logger.InfoContext(ctx, "exited")
+	os.Exit(result)
+}
+
+func run(ctx context.Context, worker bamboo.BambooWorker, workerClients map[string]bamboo.BambooWorkerClient) int {
+	ctx, cancel := context.WithCancel(ctx)
+	eg, ctx := errgroup.WithContext(ctx)
+	logger := sloghelper.FromContext(ctx, appNameContextKey)
+
+	eg.Go(func() error {
+		done := make(chan interface{})
+
+		go func() {
+			spanCtx, span := tracer.Start(ctx, "gorouting-app")
 			defer span.End()
 
 			requestID, err := uuid.NewRandom()
@@ -142,13 +145,13 @@ func main() {
 
 			expr := expr{workerClients: workerClients}
 
-			a := expr.workerRedisRedis(logCtx, 3, 5)
-			// b := expr.workerRedisRedis(logCtx, a, 7)
+			a := expr.workerGoroutine(logCtx, 3, 5)
+			// b := expr.workerGoroutine(logCtx, a, 7)
 
 			if expr.getError() != nil {
-				logger.ErrorContext(logCtx, "failed to run (3 * 5 * 7)", slog.Any("err", expr.getError()))
+				logger.ErrorContext(logCtx, "failed to run (3 * 5 * 7)", expr.getError())
 			} else {
-				logger.InfoContext(logCtx, fmt.Sprintf("3 * 5 = %d", a))
+				logger.InfoContext(logCtx, fmt.Sprintf("3 * 5 * 7 = %d", a))
 			}
 
 			// if expr.getError() != nil {
@@ -156,9 +159,41 @@ func main() {
 			// } else {
 			// 	logger.Infof("3 * 5 * 7= %d", b)
 			// }
+
+			done <- struct{}{}
+			cancel()
 		}()
+
+		select {
+		case <-ctx.Done():
+			break
+		case <-done:
+			break
+		}
+
+		return nil
+	})
+	eg.Go(func() error {
+		return worker.Run(ctx)
+	})
+	eg.Go(func() error {
+		return helper.SignalWatchProcess(ctx)
+	})
+	eg.Go(func() error {
+		<-ctx.Done()
+		return ctx.Err() // nolint:wrapcheck
+	})
+
+	if err := eg.Wait(); err != nil {
+		if errors.Is(err, context.Canceled) {
+			logger.InfoContext(ctx, "", slog.Any("err", err))
+			return 0
+		} else {
+			logger.ErrorContext(ctx, "", slog.Any("err", err))
+			return 1
+		}
 	}
-	wg.Wait()
+	return 0
 }
 
 func initialize(ctx context.Context, appMode string) (*Config, *sdktrace.TracerProvider) {
@@ -181,4 +216,26 @@ func initialize(ctx context.Context, appMode string) (*Config, *sdktrace.TracerP
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 
 	return cfg, tp
+}
+
+func workerFunc(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
+	logger := sloghelper.FromContext(ctx, appNameContextKey)
+
+	req := GoroutineAppParameter{}
+	if err := proto.Unmarshal(reqBytes, &req); err != nil {
+		return nil, internal.Errorf("proto.Unmarshal. err: %w", err)
+	}
+
+	time.Sleep(time.Second * 1)
+
+	answer := req.X * req.Y
+	logger.InfoContext(ctx, fmt.Sprintf("answer: %d", answer))
+
+	resp := GoroutineAppResponse{Value: answer}
+	respBytes, err := proto.Marshal(&resp)
+	if err != nil {
+		return nil, internal.Errorf("proto.Marshal. err: %w", err)
+	}
+
+	return respBytes, nil
 }

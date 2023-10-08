@@ -8,18 +8,19 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/pecolynx/bamboo/internal"
+	pb "github.com/pecolynx/bamboo/proto"
 )
 
 type redisRedisBambooResultPublisher struct {
 	publisherOptions *redis.UniversalOptions
-	workerFunc       WorkerFunc
-	numWorkers       int
-	logConfigFunc    LogConfigFunc
 	workerPool       chan chan internal.Job
 }
 
-func NewRedisBambooResultPublisher() BambooResultPublisher {
-	return &redisRedisBambooResultPublisher{}
+func NewRedisBambooResultPublisher(publisherOptions *redis.UniversalOptions) BambooResultPublisher {
+	return &redisRedisBambooResultPublisher{
+		publisherOptions: publisherOptions,
+		workerPool:       make(chan chan internal.Job),
+	}
 }
 
 func (p *redisRedisBambooResultPublisher) Ping(ctx context.Context) error {
@@ -33,7 +34,7 @@ func (p *redisRedisBambooResultPublisher) Ping(ctx context.Context) error {
 }
 
 func (p *redisRedisBambooResultPublisher) Publish(ctx context.Context, resultChannel string, result []byte) error {
-	resp := WorkerResponse{Type: ResponseType_DATA, Data: result}
+	resp := pb.WorkerResponse{Type: pb.ResponseType_DATA, Data: result}
 	respBytes, err := proto.Marshal(&resp)
 	if err != nil {
 		return internal.Errorf("proto.Marshal. err: %w", err)

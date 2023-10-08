@@ -1,21 +1,27 @@
 syntax = "proto3";
 
-option go_package = "github.com/pecolynx/bamboo";
+option go_package = "github.com/pecolynx/bamboo/proto";
 
-package bamboo;
+package proto;
 
 message WorkerParameter {
   map<string, string> carrier = 1;
   map<string, string> headers = 2;
   string              resultChannel = 3;
-  int32               heartbeatIntervalSec = 4;
-  int32               jobTimeoutSec = 5;
+  int32               heartbeatIntervalMSec = 4;
+  int32               jobTimeoutMSec = 5;
   bytes               data = 6;
 }
 
 enum ResponseType {
   HEARTBEAT = 0;
-  DATA = 1;
+  //
+  ACCEPTED = 1;
+  //
+  DATA = 2;
+  ABORTED = 3;
+  INVALID_ARGUMENT = 4;
+  INTERNAL_ERROR = 5;
 }
 
 message WorkerResponse {

@@ -3,12 +3,15 @@ package bamboo
 import (
 	"context"
 	"encoding/base64"
+	"log/slog"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/pecolynx/bamboo/internal"
+	pb "github.com/pecolynx/bamboo/proto"
+	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type redisBambooHeartbeatPublisher struct {
@@ -17,7 +20,7 @@ type redisBambooHeartbeatPublisher struct {
 }
 
 func NewRedisBambooHeartbeatPublisher(publisherOptions *redis.UniversalOptions) BambooHeartbeatPublisher {
-	heartbeatResp := WorkerResponse{Type: ResponseType_HEARTBEAT}
+	heartbeatResp := pb.WorkerResponse{Type: pb.ResponseType_HEARTBEAT}
 	heartbeatRespBytes, err := proto.Marshal(&heartbeatResp)
 	if err != nil {
 		panic(err)
@@ -31,43 +34,56 @@ func NewRedisBambooHeartbeatPublisher(publisherOptions *redis.UniversalOptions) 
 	}
 }
 
-func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalSec int, done <-chan interface{}, aborted <-chan interface{}) {
-	logger := internal.FromContext(ctx)
-
-	if heartbeatIntervalSec == 0 {
-		logger.Debug("heartbeat is disabled because heartbeatIntervalSec is zero.")
-		return
+func (p *redisBambooHeartbeatPublisher) Ping(ctx context.Context) error {
+	publisher := redis.NewUniversalClient(p.publisherOptions)
+	defer publisher.Close()
+	if _, err := publisher.Ping(ctx).Result(); err != nil {
+		return internal.Errorf("publisher.Ping. err: %w", err)
 	}
 
-	heartbeatInterval := time.Duration(heartbeatIntervalSec) * time.Second
+	return nil
+}
+
+func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, done <-chan interface{}, aborted <-chan interface{}) error {
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooHeartbeatPublisherLoggerContextKey)
+	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooHeartbeatPublisherLoggerContextKey)
+
+	if heartbeatIntervalMSec == 0 {
+		logger.DebugContext(ctx, "heartbeat is disabled because heartbeatIntervalMSec is zero.")
+		return nil
+	}
+
+	heartbeatInterval := time.Duration(heartbeatIntervalMSec) * time.Millisecond
 	pulse := time.NewTicker(heartbeatInterval)
 
 	go func() {
 		defer func() {
-			logger.Debug("stop heartbeat loop")
+			logger.DebugContext(ctx, "stop heartbeat loop")
 			pulse.Stop()
 		}()
 
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Debug("ctx.Done(). stop SendingPulse...")
+				logger.DebugContext(ctx, "ctx.Done(). stop SendingPulse...")
 				return
 			case <-done:
-				logger.Debug("done. stop SendingPulse...")
+				logger.DebugContext(ctx, "done. stop SendingPulse...")
 				return
 			case <-aborted:
-				logger.Debug("aborted. stop SendingPulse...")
+				logger.DebugContext(ctx, "aborted. stop SendingPulse...")
 				return
 			case <-pulse.C:
-				logger.Debug("pulse")
+				logger.DebugContext(ctx, "pulse")
 				publisher := redis.NewUniversalClient(h.publisherOptions)
 				defer publisher.Close()
 
 				if _, err := publisher.Publish(ctx, resultChannel, h.heartbeatRespStr).Result(); err != nil {
-					logger.Errorf("err: %w", err)
+					logger.ErrorContext(ctx, "publisher.Publish", slog.Any("err", err))
 				}
 			}
 		}
 	}()
+
+	return nil
 }

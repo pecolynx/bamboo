@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option go_package = "github.com/pecolynx/bamboo/proto_test";
+
+package proto_test;
+
+message WorkerTestParameter {
+  int32 x = 1;
+  int32 y = 2;
+  int32 waitMSec = 3;
+}
+
+message WorkerTestResponse {
+  int32   value = 1;
+}

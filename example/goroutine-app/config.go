@@ -24,6 +24,7 @@ type AppConfig struct {
 type Config struct {
 	App     *AppConfig                            `yaml:"app" validate:"required"`
 	Workers map[string]*helper.WorkerClientConfig `yaml:"workers" validate:"required"`
+	Worker  *helper.WorkerConfig                  `yaml:"worker" validate:"required"`
 	Trace   *helper.TraceConfig                   `yaml:"trace" validate:"required"`
 	Log     *helper.LogConfig                     `yaml:"log" validate:"required"`
 }

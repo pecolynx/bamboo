@@ -5,10 +5,12 @@ import (
 	"encoding/base64"
 
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/pecolynx/bamboo/internal"
+	pb "github.com/pecolynx/bamboo/proto"
 )
 
 type redisBambooRequestProducer struct {
@@ -18,16 +20,18 @@ type redisBambooRequestProducer struct {
 	propagator      propagation.TextMapPropagator
 }
 
-func NewRedisBambooRequestProducer(ctx context.Context, workerName string, producerOptions redis.UniversalOptions, producerChannel string, propagator propagation.TextMapPropagator) BambooRequestProducer {
+func NewRedisBambooRequestProducer(ctx context.Context, workerName string, producerOptions redis.UniversalOptions, producerChannel string) BambooRequestProducer {
 	return &redisBambooRequestProducer{
 		workerName:      workerName,
 		producerOptions: producerOptions,
 		producerChannel: producerChannel,
-		propagator:      propagator,
+		propagator:      otel.GetTextMapPropagator(),
 	}
 }
 
-func (p *redisBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalSec int, jobTimeoutSec int, headers map[string]string, data []byte) error {
+func (p *redisBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, data []byte) error {
+	// logger := sloghelper.FromContext(ctx)
+
 	carrier := propagation.MapCarrier{}
 
 	spanCtx, span := tracer.Start(ctx, p.workerName)
@@ -35,14 +39,15 @@ func (p *redisBambooRequestProducer) Produce(ctx context.Context, resultChannel 
 
 	p.propagator.Inject(spanCtx, carrier)
 
-	req := WorkerParameter{
-		Carrier:              carrier,
-		Headers:              headers,
-		ResultChannel:        resultChannel,
-		HeartbeatIntervalSec: int32(heartbeatIntervalSec),
-		JobTimeoutSec:        int32(jobTimeoutSec),
-		Data:                 data,
+	req := pb.WorkerParameter{
+		Carrier:               carrier,
+		Headers:               headers,
+		ResultChannel:         resultChannel,
+		HeartbeatIntervalMSec: int32(heartbeatIntervalMSec),
+		JobTimeoutMSec:        int32(jobTimeoutMSec),
+		Data:                  data,
 	}
+
 	reqBytes, err := proto.Marshal(&req)
 	if err != nil {
 		return internal.Errorf("proto.Marshal. err: %w", err)
@@ -54,6 +59,17 @@ func (p *redisBambooRequestProducer) Produce(ctx context.Context, resultChannel 
 
 	if _, err := producer.LPush(ctx, p.producerChannel, reqStr).Result(); err != nil {
 		return internal.Errorf("producer.LPush. err: %w", err)
+	}
+
+	return nil
+}
+
+func (p *redisBambooRequestProducer) Ping(ctx context.Context) error {
+	producer := redis.NewUniversalClient(&p.producerOptions)
+	defer producer.Close()
+
+	if _, err := producer.Ping(ctx).Result(); err != nil {
+		return internal.Errorf("producer.Ping. err: %w", err)
 	}
 
 	return nil

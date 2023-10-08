@@ -1,0 +1,21 @@
+---
+with-expecter: true
+
+mockname: "{{.InterfaceName}}"
+outpkg: mocks
+filename: "{{.MockName}}.go"
+packages:
+  github.com/pecolynx/bamboo:
+    config:
+      inpackage: True
+      keeptree: False
+      dir: mocks
+    interfaces:
+      BambooRequestProducer:
+      BambooRequestConsumer:
+      BambooResultSubscriber:
+      BambooResultPublisher:
+      BambooHeartbeatPublisher:
+      BambooWorker:
+      SubscribeFunc:
+      CloseSubscribeConnectionFunc:
