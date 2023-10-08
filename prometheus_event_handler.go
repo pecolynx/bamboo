@@ -10,10 +10,6 @@ type MetricsEventHandler interface {
 }
 
 type emptyEventHandler struct {
-	receiveRequestCounter  prometheus.Counter
-	successCounter         prometheus.Counter
-	internalErrorCounter   prometheus.Counter
-	InvalidArgumentCounter prometheus.Counter
 }
 
 func NewEmptyEventHandler() MetricsEventHandler {
@@ -57,10 +53,18 @@ func NewPrometheusEventHandler() MetricsEventHandler {
 			Name: "bamboo_jobs_invalid_argument",
 		})
 
-	prometheus.Register(receiveRequestCounter)
-	prometheus.Register(successJobCounter)
-	prometheus.Register(internalErrorJobCounter)
-	prometheus.Register(invalidArgumentJobCounter)
+	if err := prometheus.Register(receiveRequestCounter); err != nil {
+		panic(err)
+	}
+	if err := prometheus.Register(successJobCounter); err != nil {
+		panic(err)
+	}
+	if err := prometheus.Register(internalErrorJobCounter); err != nil {
+		panic(err)
+	}
+	if err := prometheus.Register(invalidArgumentJobCounter); err != nil {
+		panic(err)
+	}
 
 	return &prometheusEventHandler{
 		receiveRequestCounter:     receiveRequestCounter,
