@@ -49,8 +49,8 @@ func (m *goroutineBambooPubSubMap) CreateChannel(channelName string) chan []byte
 func (m *goroutineBambooPubSubMap) GetChannel(channelName string) (chan []byte, error) {
 	if _, ok := m.pubsubMap[channelName]; !ok {
 		return nil, fmt.Errorf("pubsub channel not found. name: %s", channelName)
-
 	}
+
 	pubsub := m.pubsubMap[channelName]
 
 	return pubsub, nil

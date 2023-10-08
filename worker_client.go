@@ -110,9 +110,9 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 	}()
 
 	c1 := make(chan ByteArreayResult, 1)
-	done := make(chan interface{})
+	done := make(chan struct{})
 
-	aborted := make(chan interface{})
+	aborted := make(chan struct{})
 	defer close(aborted)
 
 	go func() {
@@ -150,37 +150,7 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 	}()
 
 	if heartbeatIntervalMSec != 0 {
-		go func() {
-			ticker := time.NewTicker(time.Duration(heartbeatIntervalMSec) * time.Millisecond)
-			defer func() {
-				logger.DebugContext(ctx, "stop heartbeat loop")
-				ticker.Stop()
-			}()
-
-			last := time.Now().UnixMilli()
-			logger.DebugContext(ctx, "start heartbeat loop", slog.Int64("time", last))
-
-			for {
-				select {
-				case <-ctx.Done():
-					logger.DebugContext(ctx, "context canceled")
-					return
-				case <-done:
-					logger.DebugContext(ctx, "done")
-					return
-				case h := <-heartbeat:
-					if h != 0 {
-						last = h
-						logger.DebugContext(ctx, "heartbeat", slog.Int64("time", h))
-					}
-				case <-ticker.C:
-					if time.Now().UnixMilli()-last > int64(heartbeatIntervalMSec)*2 {
-						logger.DebugContext(ctx, "heartbeat couldn't be received")
-						aborted <- struct{}{}
-					}
-				}
-			}
-		}()
+		c.startHeartbeatCheck(ctx, heartbeatIntervalMSec, done, heartbeat, aborted)
 	}
 
 	select {
@@ -194,11 +164,46 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 		}
 		return resp.Value, nil
 	}
+}
 
+func (c *bambooWorkerClient) startHeartbeatCheck(ctx context.Context, heartbeatIntervalMSec int, done <-chan struct{}, heartbeat <-chan int64, aborted chan<- struct{}) {
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
+
+	go func() {
+		ticker := time.NewTicker(time.Duration(heartbeatIntervalMSec) * time.Millisecond)
+		defer func() {
+			logger.DebugContext(ctx, "stop heartbeat loop")
+			ticker.Stop()
+		}()
+
+		last := time.Now().UnixMilli()
+		logger.DebugContext(ctx, "start heartbeat loop", slog.Int64("time", last))
+
+		for {
+			select {
+			case <-ctx.Done():
+				logger.DebugContext(ctx, "context canceled")
+				return
+			case <-done:
+				logger.DebugContext(ctx, "done")
+				return
+			case h := <-heartbeat:
+				if h != 0 {
+					last = h
+					logger.DebugContext(ctx, "heartbeat", slog.Int64("time", h))
+				}
+			case <-ticker.C:
+				if time.Now().UnixMilli()-last > int64(heartbeatIntervalMSec)*2 {
+					logger.DebugContext(ctx, "heartbeat couldn't be received")
+					aborted <- struct{}{}
+				}
+			}
+		}
+	}()
 }
 
 func (c *bambooWorkerClient) startTimer(ctx context.Context, timeoutTime time.Duration) <-chan interface{} {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooResultSubscriberLoggerContextKey)
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
 	if timeoutTime != 0 {
 		timedout := make(chan interface{})
 		time.AfterFunc(timeoutTime, func() {

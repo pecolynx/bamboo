@@ -40,7 +40,6 @@ func (c *goroutineBambooRequestConsumer) Consume(ctx context.Context) (*pb.Worke
 			return &req, nil
 		}
 	}
-
 }
 
 func (c *goroutineBambooRequestConsumer) Ping(ctx context.Context) error {

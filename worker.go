@@ -24,7 +24,6 @@ type bambooWorker struct {
 }
 
 func NewBambooWorker(createRequestConsumerFunc CreateBambooRequestConsumerFunc, resultPublisher BambooResultPublisher, heartbeatPublisher BambooHeartbeatPublisher, workerFunc WorkerFunc, numWorkers int, logConfigFunc LogConfigFunc) (BambooWorker, error) {
-
 	if resultPublisher == nil {
 		return nil, errors.New("nil")
 	}

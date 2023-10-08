@@ -37,7 +37,6 @@ func init() {
 	for _, key := range keys {
 		BambooLoggers[key] = slog.New(&BambooHandler{Handler: slog.NewJSONHandler(os.Stdout, nil)})
 	}
-
 }
 
 func Init(ctx context.Context) context.Context {
