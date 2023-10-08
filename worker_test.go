@@ -111,6 +111,8 @@ func Test_WorkerClient_Call(t *testing.T) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	initLog()
+	internal.UseXerrorsErrorf()
+	logger := sloghelper.FromContext(ctx, "bamboo_test")
 
 	type inputs struct {
 		heartbeatIntervalMSec   int
@@ -203,6 +205,7 @@ func Test_WorkerClient_Call(t *testing.T) {
 
 			respBytes, err := workerClient.Call(ctx, tt.inputs.heartbeatIntervalMSec, tt.inputs.jobTimeoutMSec, map[string]string{}, reqBytes)
 			if tt.outputs.callError != nil {
+				logger.ErrorContext(ctx, fmt.Sprintf("%+v", err))
 				assert.ErrorIs(t, err, tt.outputs.callError)
 				return
 			}
