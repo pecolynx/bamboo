@@ -41,7 +41,7 @@ func (c *bambooWorkerClient) Close(ctx context.Context) {
 
 func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, param []byte) ([]byte, error) {
 	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
-	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, sloghelper.BambooWorkerClientLoggerContextKey)
+	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
 	logger.DebugContext(ctx, "Call")
 
 	resultChannel, err := c.newResultChannelString()

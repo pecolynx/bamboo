@@ -27,7 +27,7 @@ func NewGoroutineBambooRequestProducer(ctx context.Context, workerName string, q
 }
 
 func (p *goroutineBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, data []byte) error {
-	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, sloghelper.BambooWorkerClientLoggerContextKey)
+	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
 	carrier := propagation.MapCarrier{}
 
 	spanCtx, span := tracer.Start(ctx, p.workerName)

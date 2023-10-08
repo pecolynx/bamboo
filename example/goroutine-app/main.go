@@ -23,7 +23,7 @@ import (
 )
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/goroutine-app")
-var appName sloghelper.ContextKey
+var appNameContextKey sloghelper.ContextKey
 
 type expr struct {
 	workerClients map[string]bamboo.BambooWorkerClient
@@ -41,7 +41,7 @@ func (e *expr) getError() error {
 }
 
 func (e *expr) workerGoroutine(ctx context.Context, x, y int) int {
-	logger := sloghelper.FromContext(ctx, appName)
+	logger := sloghelper.FromContext(ctx, appNameContextKey)
 
 	request_id, _ := ctx.Value(sloghelper.RequestIDKey).(string)
 	headers := map[string]string{
@@ -94,10 +94,10 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
-	appName = sloghelper.ContextKey(cfg.App.Name)
+	appNameContextKey = sloghelper.ContextKey(cfg.App.Name)
 
-	logger := sloghelper.FromContext(ctx, appName)
-	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, cfg.App.Name)
+	logger := sloghelper.FromContext(ctx, appNameContextKey)
+	ctx = sloghelper.WithLoggerName(ctx, appNameContextKey)
 
 	factory := helper.NewBambooFactory()
 	worker, err := factory.CreateBambooWorker(cfg.Worker, workerFunc)
@@ -115,7 +115,7 @@ func main() {
 		workerClients[k] = workerClient
 	}
 
-	logger.InfoContext(ctx, fmt.Sprintf("Started %s", appName))
+	logger.InfoContext(ctx, fmt.Sprintf("Started %s", cfg.App.Name))
 
 	result := run(ctx, worker, workerClients)
 	time.Sleep(time.Second)
@@ -127,7 +127,7 @@ func main() {
 func run(ctx context.Context, worker bamboo.BambooWorker, workerClients map[string]bamboo.BambooWorkerClient) int {
 	ctx, cancel := context.WithCancel(ctx)
 	eg, ctx := errgroup.WithContext(ctx)
-	logger := sloghelper.FromContext(ctx, appName)
+	logger := sloghelper.FromContext(ctx, appNameContextKey)
 
 	eg.Go(func() error {
 		done := make(chan interface{})
@@ -219,7 +219,7 @@ func initialize(ctx context.Context, appMode string) (*Config, *sdktrace.TracerP
 }
 
 func workerFunc(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
-	logger := sloghelper.FromContext(ctx, appName)
+	logger := sloghelper.FromContext(ctx, appNameContextKey)
 
 	req := GoroutineAppParameter{}
 	if err := proto.Unmarshal(reqBytes, &req); err != nil {

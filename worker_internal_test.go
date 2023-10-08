@@ -74,7 +74,7 @@ func Test_bambooWorker_run(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, sloghelper.BambooWorkerLoggerContextKey)
+	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerLoggerContextKey)
 
 	req := pb.WorkerParameter{
 		Headers: map[string]string{
@@ -164,7 +164,7 @@ func Test_bambooWorker_run(t *testing.T) {
 
 func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 	ctx := context.Background()
-	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, sloghelper.BambooWorkerLoggerContextKey)
+	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerLoggerContextKey)
 
 	logConfigFunc := func(ctx context.Context, headers map[string]string) context.Context {
 		for k, v := range headers {

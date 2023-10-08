@@ -19,6 +19,8 @@ import (
 	"github.com/pecolynx/bamboo/sloghelper"
 )
 
+var testAppNameContextKey sloghelper.ContextKey = sloghelper.ContextKey("bamboo_test")
+
 type logStruct struct {
 	Level      string `json:"level"`
 	ClientName string `json:"client_name"`
@@ -59,7 +61,7 @@ func initLog() stringList {
 		Level: slog.LevelDebug,
 	})})
 
-	sloghelper.BambooLoggers["bamboo_test"] = logger
+	sloghelper.BambooLoggers[testAppNameContextKey] = logger
 	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerContextKey] = logger
 	sloghelper.BambooLoggers[sloghelper.BambooWorkerClientLoggerContextKey] = logger
 	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerContextKey] = logger
@@ -83,8 +85,8 @@ var (
 	}
 
 	workerFunc = func(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
-		logger := sloghelper.FromContext(ctx, "bamboo_test")
-		ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, "bamboo_test")
+		logger := sloghelper.FromContext(ctx, testAppNameContextKey)
+		ctx = sloghelper.WithLoggerName(ctx, testAppNameContextKey)
 
 		req := pb_test.WorkerTestParameter{}
 		if err := proto.Unmarshal(reqBytes, &req); err != nil {

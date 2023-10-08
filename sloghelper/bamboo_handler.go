@@ -27,9 +27,9 @@ func (h *BambooHandler) Handle(ctx context.Context, record slog.Record) error {
 		record.AddAttrs(slog.String(RequestIDKey, requestID))
 	}
 
-	loggerName, ok := ctx.Value(LoggerNameContextKey).(ContextKey)
+	loggerName, ok := ctx.Value(LoggerNameContextKey).(string)
 	if ok {
-		record.AddAttrs(slog.String(LoggerNameKey, string(loggerName)))
+		record.AddAttrs(slog.String(LoggerNameKey, loggerName))
 	}
 
 	return h.Handler.Handle(ctx, record)

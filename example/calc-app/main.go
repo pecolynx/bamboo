@@ -20,7 +20,7 @@ import (
 )
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/calc-app")
-var appName sloghelper.ContextKey
+var appNameContextKey sloghelper.ContextKey
 
 type expr struct {
 	workerClients map[string]bamboo.BambooWorkerClient
@@ -38,7 +38,7 @@ func (e *expr) getError() error {
 }
 
 func (e *expr) workerRedisRedis(ctx context.Context, x, y int) int {
-	logger := sloghelper.FromContext(ctx, appName)
+	logger := sloghelper.FromContext(ctx, appNameContextKey)
 
 	request_id, _ := ctx.Value(sloghelper.RequestIDKey).(string)
 	headers := map[string]string{
@@ -91,13 +91,13 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
-	appName = sloghelper.ContextKey(cfg.App.Name)
+	appNameContextKey = sloghelper.ContextKey(cfg.App.Name)
 
 	debugHandler := &sloghelper.BambooHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})}
 
-	sloghelper.BambooLoggers[appName] = slog.New(debugHandler)
+	sloghelper.BambooLoggers[appNameContextKey] = slog.New(debugHandler)
 	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerContextKey] = slog.New(debugHandler)
 	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerContextKey] = slog.New(debugHandler)
 	sloghelper.BambooLoggers[sloghelper.BambooWorkerClientLoggerContextKey] = slog.New(debugHandler)
@@ -107,8 +107,8 @@ func main() {
 	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerContextKey] = slog.New(debugHandler)
 	sloghelper.Init(ctx)
 
-	logger := sloghelper.FromContext(ctx, appName)
-	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, cfg.App.Name)
+	logger := sloghelper.FromContext(ctx, appNameContextKey)
+	ctx = sloghelper.WithLoggerName(ctx, appNameContextKey)
 
 	factory := helper.NewBambooFactory()
 

@@ -46,7 +46,7 @@ func (p *redisBambooHeartbeatPublisher) Ping(ctx context.Context) error {
 
 func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, done <-chan interface{}, aborted <-chan interface{}) error {
 	logger := sloghelper.FromContext(ctx, sloghelper.BambooHeartbeatPublisherLoggerContextKey)
-	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, sloghelper.BambooHeartbeatPublisherLoggerContextKey)
+	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooHeartbeatPublisherLoggerContextKey)
 
 	if heartbeatIntervalMSec == 0 {
 		logger.DebugContext(ctx, "heartbeat is disabled because heartbeatIntervalMSec is zero.")

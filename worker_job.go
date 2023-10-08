@@ -45,7 +45,7 @@ func NewWorkerJob(ctx context.Context, carrier propagation.MapCarrier, workerFun
 
 func (j *workerJob) Run(ctx context.Context) error {
 	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerJobLoggerContextKey)
-	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, sloghelper.BambooWorkerLoggerContextKey)
+	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerLoggerContextKey)
 	defer close(j.done)
 
 	logger.DebugContext(ctx, fmt.Sprintf("start job. resultChannel: %s", j.resultChannel))
