@@ -294,7 +294,7 @@ jobs:
         with:
           github_token: ${{ secrets.github_token }}
           reporter: github-pr-review
-          golangci_lint_flags: "--config=${{ github.workspace }}/.github/.golangci.yml --disable-all -E gocognit --timeout=10m"
+          golangci_lint_flags: "--config=${{ github.workspace }}/.github/.golangci.yml --tests=false --disable-all -E gocognit --timeout=10m"
           tool_name: gocognit
           fail_on_error: true
           workdir: ${{ matrix.workdir }}

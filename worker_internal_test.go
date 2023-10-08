@@ -285,9 +285,9 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 
 			// then
 			if tt.outputs.wantError {
-				assert.NotNil(t, err)
+				assert.Error(t, err)
 			} else {
-				assert.Nil(t, err)
+				require.NoError(t, err)
 			}
 			assert.Equal(t, hasJob, tt.outputs.hasJob)
 			assert.Len(t, stringList.list, tt.outputs.numberOfLogs)
