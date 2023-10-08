@@ -9,7 +9,6 @@ import (
 
 	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
-	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type goroutineBambooRequestProducer struct {
@@ -27,7 +26,7 @@ func NewGoroutineBambooRequestProducer(ctx context.Context, workerName string, q
 }
 
 func (p *goroutineBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, data []byte) error {
-	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
+	ctx = WithLoggerName(ctx, BambooWorkerClientLoggerContextKey)
 	carrier := propagation.MapCarrier{}
 
 	spanCtx, span := tracer.Start(ctx, p.workerName)

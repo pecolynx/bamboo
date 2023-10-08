@@ -1,11 +1,11 @@
-package sloghelper
+package bamboo
 
 import (
 	"context"
 	"log/slog"
 )
 
-type BambooHandler struct {
+type BambooLogHandler struct {
 	slog.Handler
 }
 
@@ -14,14 +14,12 @@ var (
 	LoggerNameKey = "bamboo_logger_name"
 )
 
-type ContextKey string
-
 const (
 	RequestIDContextKey  ContextKey = "RequestIDContextKey"
 	LoggerNameContextKey ContextKey = "LoggerNameContextKey"
 )
 
-func (h *BambooHandler) Handle(ctx context.Context, record slog.Record) error {
+func (h *BambooLogHandler) Handle(ctx context.Context, record slog.Record) error {
 	requestID, ok := ctx.Value(RequestIDContextKey).(string)
 	if ok {
 		record.AddAttrs(slog.String(RequestIDKey, requestID))
@@ -35,14 +33,14 @@ func (h *BambooHandler) Handle(ctx context.Context, record slog.Record) error {
 	return h.Handler.Handle(ctx, record)
 }
 
-func (h *BambooHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &BambooHandler{
+func (h *BambooLogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &BambooLogHandler{
 		Handler: h.Handler.WithAttrs(attrs),
 	}
 }
 
-func (h *BambooHandler) WithGroup(name string) slog.Handler {
-	return &BambooHandler{
+func (h *BambooLogHandler) WithGroup(name string) slog.Handler {
+	return &BambooLogHandler{
 		Handler: h.Handler.WithGroup(name),
 	}
 }

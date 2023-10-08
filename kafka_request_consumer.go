@@ -11,7 +11,6 @@ import (
 
 	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
-	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type kafkaBambooRequestConsumer struct {
@@ -29,7 +28,7 @@ func NewKafkaBambooRequestConsumer(consumerOptions kafka.ReaderConfig, requestWa
 }
 
 func (c *kafkaBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerParameter, error) {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooRequestConsumerLoggerContextKey)
 
 	for {
 		select {

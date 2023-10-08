@@ -17,11 +17,10 @@ import (
 	"github.com/pecolynx/bamboo"
 	"github.com/pecolynx/bamboo/helper"
 	"github.com/pecolynx/bamboo/internal"
-	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/worker-redis-redis")
-var appNameContextKey sloghelper.ContextKey
+var appNameContextKey bamboo.ContextKey
 
 func main() {
 	ctx := context.Background()
@@ -30,24 +29,24 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
-	appNameContextKey = sloghelper.ContextKey(cfg.App.Name)
+	appNameContextKey = bamboo.ContextKey(cfg.App.Name)
 
-	debugHandler := &sloghelper.BambooHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	debugHandler := &bamboo.BambooLogHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})}
 
-	sloghelper.BambooLoggers[appNameContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerClientLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.Init(ctx)
+	bamboo.BambooLoggers[appNameContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooWorkerLoggerContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooWorkerJobLoggerContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooWorkerClientLoggerContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooRequestProducerLoggerContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooRequestConsumerLoggerContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooResultPublisherLoggerContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooResultSubscriberLoggerContextKey] = slog.New(debugHandler)
+	bamboo.Init(ctx)
 
-	logger := sloghelper.FromContext(ctx, appNameContextKey)
-	ctx = sloghelper.WithValue(ctx, sloghelper.LoggerNameContextKey, cfg.App.Name)
+	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
+	ctx = bamboo.WithValue(ctx, bamboo.LoggerNameContextKey, cfg.App.Name)
 
 	factory := helper.NewBambooFactory()
 	worker, err := factory.CreateBambooWorker(cfg.Worker, workerFunc)
@@ -67,10 +66,13 @@ func main() {
 
 func run(ctx context.Context, worker bamboo.BambooWorker) int {
 	eg, ctx := errgroup.WithContext(ctx)
-	logger := sloghelper.FromContext(ctx, appNameContextKey)
+	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 
 	eg.Go(func() error {
 		return worker.Run(ctx)
+	})
+	eg.Go(func() error {
+		return bamboo.MetricsServerProcess(ctx, 8081, 1)
 	})
 	eg.Go(func() error {
 		return helper.SignalWatchProcess(ctx)
@@ -99,7 +101,7 @@ func initialize(ctx context.Context, appMode string) (*Config, *sdktrace.TracerP
 	}
 
 	// init log
-	if err := helper.InitLog(sloghelper.ContextKey(cfg.App.Name), cfg.Log); err != nil {
+	if err := helper.InitLog(bamboo.ContextKey(cfg.App.Name), cfg.Log); err != nil {
 		panic(err)
 	}
 
@@ -115,7 +117,7 @@ func initialize(ctx context.Context, appMode string) (*Config, *sdktrace.TracerP
 }
 
 func workerFunc(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
-	logger := sloghelper.FromContext(ctx, appNameContextKey)
+	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 
 	ctx, span := tracer.Start(ctx, "workerFunc")
 	defer span.End()

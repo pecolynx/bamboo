@@ -7,7 +7,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/pecolynx/bamboo/proto"
-	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type goroutineBambooHeartbeatPublisher struct {
@@ -33,8 +32,8 @@ func (h *goroutineBambooHeartbeatPublisher) Ping(ctx context.Context) error {
 }
 
 func (h *goroutineBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, done <-chan interface{}, aborted <-chan interface{}) error {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooHeartbeatPublisherLoggerContextKey)
-	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooHeartbeatPublisherLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooHeartbeatPublisherLoggerContextKey)
+	ctx = WithLoggerName(ctx, BambooHeartbeatPublisherLoggerContextKey)
 
 	pubsub, err := h.pubsubMap.GetChannel(resultChannel)
 	if err != nil {

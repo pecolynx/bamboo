@@ -12,7 +12,6 @@ import (
 
 	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
-	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type redisBambooRequestConsumer struct {
@@ -34,7 +33,7 @@ func NewRedisBambooRequestConsumer(consumerOptions *redis.UniversalOptions, cons
 }
 
 func (c *redisBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerParameter, error) {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooRequestConsumerLoggerContextKey)
 
 	for {
 		select {

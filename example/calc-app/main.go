@@ -16,11 +16,10 @@ import (
 	"github.com/pecolynx/bamboo"
 	"github.com/pecolynx/bamboo/helper"
 	"github.com/pecolynx/bamboo/internal"
-	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/calc-app")
-var appNameContextKey sloghelper.ContextKey
+var appNameContextKey bamboo.ContextKey
 
 type expr struct {
 	workerClients map[string]bamboo.BambooWorkerClient
@@ -38,11 +37,11 @@ func (e *expr) getError() error {
 }
 
 func (e *expr) workerRedisRedis(ctx context.Context, x, y int) int {
-	logger := sloghelper.FromContext(ctx, appNameContextKey)
+	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 
-	request_id, _ := ctx.Value(sloghelper.RequestIDKey).(string)
+	request_id, _ := ctx.Value(bamboo.RequestIDKey).(string)
 	headers := map[string]string{
-		sloghelper.RequestIDKey: request_id,
+		bamboo.RequestIDKey: request_id,
 	}
 
 	if err := e.getError(); err != nil {
@@ -63,7 +62,7 @@ func (e *expr) workerRedisRedis(ctx context.Context, x, y int) int {
 		return 0
 	}
 
-	respBytes, err := workerClient.Call(ctx, 2, 7, headers, paramBytes)
+	respBytes, err := workerClient.Call(ctx, 2000, 7000, headers, paramBytes)
 	if err != nil {
 		e.setError(internal.Errorf("app.Call(worker-redis-redis). err: %w", err))
 		return 0
@@ -91,24 +90,24 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
-	appNameContextKey = sloghelper.ContextKey(cfg.App.Name)
+	appNameContextKey = bamboo.ContextKey(cfg.App.Name)
 
-	debugHandler := &sloghelper.BambooHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	debugHandler := &bamboo.BambooLogHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})}
 
-	sloghelper.BambooLoggers[appNameContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerJobLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooWorkerClientLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooRequestProducerLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooRequestConsumerLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooResultPublisherLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.BambooLoggers[sloghelper.BambooResultSubscriberLoggerContextKey] = slog.New(debugHandler)
-	sloghelper.Init(ctx)
+	bamboo.BambooLoggers[appNameContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooWorkerLoggerContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooWorkerJobLoggerContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooWorkerClientLoggerContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooRequestProducerLoggerContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooRequestConsumerLoggerContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooResultPublisherLoggerContextKey] = slog.New(debugHandler)
+	bamboo.BambooLoggers[bamboo.BambooResultSubscriberLoggerContextKey] = slog.New(debugHandler)
+	bamboo.Init(ctx)
 
-	logger := sloghelper.FromContext(ctx, appNameContextKey)
-	ctx = sloghelper.WithLoggerName(ctx, appNameContextKey)
+	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
+	ctx = bamboo.WithLoggerName(ctx, appNameContextKey)
 
 	factory := helper.NewBambooFactory()
 
@@ -138,7 +137,7 @@ func main() {
 				panic(err)
 			}
 
-			logCtx := sloghelper.WithValue(spanCtx, sloghelper.RequestIDContextKey, requestID.String())
+			logCtx := bamboo.WithValue(spanCtx, bamboo.RequestIDContextKey, requestID.String())
 
 			expr := expr{workerClients: workerClients}
 
@@ -168,7 +167,7 @@ func initialize(ctx context.Context, appMode string) (*Config, *sdktrace.TracerP
 	}
 
 	// init log
-	if err := helper.InitLog(sloghelper.ContextKey(cfg.App.Name), cfg.Log); err != nil {
+	if err := helper.InitLog(bamboo.ContextKey(cfg.App.Name), cfg.Log); err != nil {
 		panic(err)
 	}
 

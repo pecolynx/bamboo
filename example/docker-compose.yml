@@ -31,3 +31,11 @@ services:
     ports:
       - 14268:14268
       - 16686:16686
+  dev-prometheus:
+    image: prom/prometheus
+    container_name: bamboo-prometheus
+    volumes:
+      - ./:/etc/prometheus
+    command: "--config.file=/etc/prometheus/prometheus.yml"
+    ports:
+      - 9090:9090

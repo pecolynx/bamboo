@@ -69,6 +69,7 @@ func (f *bambooFactory) CreateBambooWorkerClient(ctx context.Context, workerName
 func (f *bambooFactory) CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.WorkerFunc) (bamboo.BambooWorker, error) {
 	var resultPublisher bamboo.BambooResultPublisher
 	var heartbeatPublisher bamboo.BambooHeartbeatPublisher
+	var metricsEventHandler bamboo.MetricsEventHandler
 
 	if cfg.Publisher.Type == "redis" {
 		publisherOptions := &redis.UniversalOptions{
@@ -118,5 +119,6 @@ func (f *bambooFactory) CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.
 		return nil, fmt.Errorf("invalid consumer type: %s", cfg.Consumer.Type)
 	}
 
-	return bamboo.NewBambooWorker(createBambooRequestConsumerFunc, resultPublisher, heartbeatPublisher, workerFunc, cfg.NumWorkers, LogConfigFunc)
+	metricsEventHandler = bamboo.NewPrometheusEventHandler()
+	return bamboo.NewBambooWorker(createBambooRequestConsumerFunc, resultPublisher, heartbeatPublisher, workerFunc, cfg.NumWorkers, LogConfigFunc, metricsEventHandler)
 }

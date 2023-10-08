@@ -8,7 +8,6 @@ import (
 
 	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
-	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type goroutineBambooRequestConsumer struct {
@@ -22,8 +21,8 @@ func NewGoroutineBambooRequestConsumer(queue <-chan []byte) BambooRequestConsume
 }
 
 func (c *goroutineBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerParameter, error) {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooRequestConsumerLoggerContextKey)
-	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooRequestConsumerLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooRequestConsumerLoggerContextKey)
+	ctx = WithLoggerName(ctx, BambooRequestConsumerLoggerContextKey)
 	logger.DebugContext(ctx, "start consuming loop")
 
 	for {

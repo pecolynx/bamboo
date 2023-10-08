@@ -11,7 +11,6 @@ import (
 
 	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
-	"github.com/pecolynx/bamboo/sloghelper"
 )
 
 type redisBambooHeartbeatPublisher struct {
@@ -45,8 +44,8 @@ func (p *redisBambooHeartbeatPublisher) Ping(ctx context.Context) error {
 }
 
 func (h *redisBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, done <-chan interface{}, aborted <-chan interface{}) error {
-	logger := sloghelper.FromContext(ctx, sloghelper.BambooHeartbeatPublisherLoggerContextKey)
-	ctx = sloghelper.WithLoggerName(ctx, sloghelper.BambooHeartbeatPublisherLoggerContextKey)
+	logger := GetLoggerFromContext(ctx, BambooHeartbeatPublisherLoggerContextKey)
+	ctx = WithLoggerName(ctx, BambooHeartbeatPublisherLoggerContextKey)
 
 	if heartbeatIntervalMSec == 0 {
 		logger.DebugContext(ctx, "heartbeat is disabled because heartbeatIntervalMSec is zero.")
