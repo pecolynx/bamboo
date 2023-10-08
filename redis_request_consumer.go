@@ -70,7 +70,6 @@ func (c *redisBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerPar
 			return &req, nil
 		}
 	}
-
 }
 
 func (c *redisBambooRequestConsumer) Ping(ctx context.Context) error {

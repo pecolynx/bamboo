@@ -123,30 +123,7 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 		defer close(c1)
 		defer close(done)
 
-		for {
-			resp, err := subscribeFunc(ctx)
-			if err != nil {
-				if errors.Is(err, ErrContextCanceled) {
-					logger.DebugContext(ctx, "context canceled")
-					return
-				} else {
-					c1 <- ByteArreayResult{Value: nil, Error: err}
-					return
-				}
-			}
-
-			switch resp.Type {
-			case pb.ResponseType_HEARTBEAT:
-				heartbeat <- time.Now().UnixMilli()
-			case pb.ResponseType_DATA:
-				c1 <- ByteArreayResult{Value: resp.Data, Error: nil}
-				return
-			case pb.ResponseType_ABORTED:
-			case pb.ResponseType_ACCEPTED:
-			case pb.ResponseType_INTERNAL_ERROR:
-			case pb.ResponseType_INVALID_ARGUMENT:
-			}
-		}
+		c.subscribeLoop(ctx, subscribeFunc, c1, heartbeat)
 	}()
 
 	if heartbeatIntervalMSec != 0 {
@@ -163,6 +140,35 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 			return nil, resp.Error
 		}
 		return resp.Value, nil
+	}
+}
+
+func (c *bambooWorkerClient) subscribeLoop(ctx context.Context, subscribeFunc SubscribeFunc, result chan<- ByteArreayResult, heartbeat chan<- int64) {
+	logger := sloghelper.FromContext(ctx, sloghelper.BambooWorkerClientLoggerContextKey)
+
+	for {
+		resp, err := subscribeFunc(ctx)
+		if err != nil {
+			if errors.Is(err, ErrContextCanceled) {
+				logger.DebugContext(ctx, "context canceled")
+				return
+			} else {
+				result <- ByteArreayResult{Value: nil, Error: err}
+				return
+			}
+		}
+
+		switch resp.Type {
+		case pb.ResponseType_HEARTBEAT:
+			heartbeat <- time.Now().UnixMilli()
+		case pb.ResponseType_DATA:
+			result <- ByteArreayResult{Value: resp.Data, Error: nil}
+			return
+		case pb.ResponseType_ABORTED:
+		case pb.ResponseType_ACCEPTED:
+		case pb.ResponseType_INTERNAL_ERROR:
+		case pb.ResponseType_INVALID_ARGUMENT:
+		}
 	}
 }
 
@@ -214,7 +220,6 @@ func (c *bambooWorkerClient) startTimer(ctx context.Context, timeoutTime time.Du
 
 	logger.DebugContext(ctx, "timeout time is infinite")
 	return nil
-
 }
 
 func (c *bambooWorkerClient) newResultChannelString() (string, error) {

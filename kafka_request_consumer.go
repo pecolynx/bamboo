@@ -55,7 +55,6 @@ func (c *kafkaBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerPar
 			return &req, nil
 		}
 	}
-
 }
 
 func (c *kafkaBambooRequestConsumer) Ping(ctx context.Context) error {
