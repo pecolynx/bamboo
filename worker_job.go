@@ -49,6 +49,9 @@ func (j *workerJob) Run(ctx context.Context) error {
 	ctx = WithLoggerName(ctx, BambooWorkerLoggerContextKey)
 	defer close(j.done)
 
+	j.metricsEventHandler.OnIncrNumRunningWorkers()
+	defer j.metricsEventHandler.OnDecrNumRunningWorkers()
+
 	logger.DebugContext(ctx, fmt.Sprintf("start job. resultChannel: %s", j.resultChannel))
 
 	propagator := otel.GetTextMapPropagator()

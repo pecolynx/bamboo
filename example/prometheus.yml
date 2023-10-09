@@ -20,4 +20,4 @@ scrape_configs:
     static_configs:
       - targets:
           - dev-prometheus:9090
-          - localhost:8081
+          - dev-worker-redis-redis:8081

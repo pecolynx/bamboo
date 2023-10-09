@@ -7,7 +7,7 @@ COPY go.mod go.mod ./
 RUN go mod download
 
 COPY . .
-RUN go build -o worker-redis-redis ./
+RUN go build -o calc-app ./
 
 # Application image.
 FROM alpine:3.16.2
@@ -16,7 +16,7 @@ FROM alpine:3.16.2
 
 WORKDIR /app
 
-COPY --from=builder /app/worker-redis-redis .
+COPY --from=builder /app/calc-app .
 
 RUN addgroup -S appgroup && \
     adduser -S appuser -G appgroup && \
@@ -26,4 +26,4 @@ USER appuser
 
 EXPOSE 8081
 
-CMD ["./worker-redis-redis"]
+CMD ["./calc-app"]

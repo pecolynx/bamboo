@@ -1,0 +1,21 @@
+---
+version: '3'
+services:
+  dev-worker-redis-redis:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: bamboo-worker-redis-redis
+    ports:
+      - 8081:8081
+    environment:
+      APP_MODE: run
+      REDIS_HOST: dev-redis
+      REDIS_PORT: 6379
+      JAEGER_HOST: dev-jaeger
+      JAEGER_PORT: 14268
+    networks:
+      - bamboo-network
+networks:
+  bamboo-network:
+    name: bamboo-network

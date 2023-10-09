@@ -1,0 +1,24 @@
+---
+app:
+  name: worker-redis-redis
+worker:
+  consumer:
+    type: redis
+    redis:
+      addrs:
+        - "$REDIS_HOST:$REDIS_PORT"
+      channel: redis-redis
+      requestWaitTimeoutMSec: 5000
+  publisher:
+    type: redis
+    redis:
+      addrs:
+        - "$REDIS_HOST:$REDIS_PORT"
+      password:
+  numWorkers: 2
+trace:
+  exporter: jaeger
+  jaeger:
+    endpoint: http://$JAEGER_HOST:$JAEGER_PORT/api/traces
+log:
+  level: debug

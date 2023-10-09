@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -27,6 +28,15 @@ type expr struct {
 	mu            sync.Mutex
 }
 
+func getValue(values ...string) string {
+	for _, v := range values {
+		if len(v) != 0 {
+			return v
+		}
+	}
+	return ""
+}
+
 func (e *expr) getError() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -36,7 +46,7 @@ func (e *expr) getError() error {
 	return nil
 }
 
-func (e *expr) workerRedisRedis(ctx context.Context, x, y int) int {
+func (e *expr) workerRedisRedis(ctx context.Context, x, y int, jobTimeoutMSec int) int {
 	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 
 	request_id, _ := ctx.Value(bamboo.RequestIDKey).(string)
@@ -62,7 +72,7 @@ func (e *expr) workerRedisRedis(ctx context.Context, x, y int) int {
 		return 0
 	}
 
-	respBytes, err := workerClient.Call(ctx, 2000, 7000, headers, paramBytes)
+	respBytes, err := workerClient.Call(ctx, 2000, jobTimeoutMSec, headers, paramBytes)
 	if err != nil {
 		e.setError(internal.Errorf("app.Call(worker-redis-redis). err: %w", err))
 		return 0
@@ -84,8 +94,12 @@ func (e *expr) setError(err error) {
 }
 
 func main() {
+	fmt.Println(os.Getenv("APP_MODE"))
+	fmt.Println(os.Getenv("NUM_REQUESTS"))
 	ctx := context.Background()
-	appMode := "debug"
+	appModeParam := flag.String("app_mode", "", "")
+	flag.Parse()
+	appMode := getValue(*appModeParam, os.Getenv("APP_MODE"), "debug")
 
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
@@ -124,7 +138,7 @@ func main() {
 	logger.InfoContext(ctx, fmt.Sprintf("Started %s", cfg.App.Name))
 
 	wg := sync.WaitGroup{}
-	for i := 0; i < 1; i++ {
+	for i := 0; i < cfg.App.NumRequests; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -141,7 +155,7 @@ func main() {
 
 			expr := expr{workerClients: workerClients}
 
-			a := expr.workerRedisRedis(logCtx, 3, 5)
+			a := expr.workerRedisRedis(logCtx, 3, 5, cfg.App.JobTimeoutMSec)
 			// b := expr.workerRedisRedis(logCtx, a, 7)
 
 			if expr.getError() != nil {

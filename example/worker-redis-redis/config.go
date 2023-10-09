@@ -29,6 +29,7 @@ type Config struct {
 }
 
 //go:embed debug.yml
+//go:embed run.yml
 var config embed.FS
 
 func LoadConfig(mode string) (*Config, error) {
