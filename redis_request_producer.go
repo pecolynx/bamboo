@@ -30,8 +30,6 @@ func NewRedisBambooRequestProducer(ctx context.Context, workerName string, produ
 }
 
 func (p *redisBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, data []byte) error {
-	// logger := sloghelper.FromContext(ctx)
-
 	carrier := propagation.MapCarrier{}
 
 	spanCtx, span := tracer.Start(ctx, p.workerName)

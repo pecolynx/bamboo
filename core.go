@@ -23,12 +23,12 @@ const (
 	BambooRequestProducerLoggerContextKey    ContextKey = "BambooRequestProducer"
 	BambooResultPublisherLoggerContextKey    ContextKey = "BambooResultPublisher"
 	BambooResultSubscriberLoggerContextKey   ContextKey = "BambooResultSubscriber"
+	BambooMetricsServerContextKey            ContextKey = "BambooMetricsServer"
 )
 
 var (
-	tracer        = otel.Tracer("github.com/pecolynx/bamboo")
-	BambooLoggers map[ContextKey]*slog.Logger
-	keys          = []ContextKey{
+	tracer = otel.Tracer("github.com/pecolynx/bamboo")
+	keys   = []ContextKey{
 		BambooWorkerLoggerContextKey,
 		BambooWorkerClientLoggerContextKey,
 		BambooWorkerJobLoggerContextKey,
@@ -37,15 +37,22 @@ var (
 		BambooRequestProducerLoggerContextKey,
 		BambooResultPublisherLoggerContextKey,
 		BambooResultSubscriberLoggerContextKey,
+		BambooMetricsServerContextKey,
 	}
-	lock sync.Mutex
+	BambooLoggers map[ContextKey]*slog.Logger = make(map[ContextKey]*slog.Logger)
+	LogHandlers   map[slog.Level]slog.Handler = make(map[slog.Level]slog.Handler)
+	lock          sync.Mutex
 )
 
 func init() {
-	BambooLoggers = make(map[ContextKey]*slog.Logger)
-
 	for _, key := range keys {
 		BambooLoggers[key] = slog.New(&BambooLogHandler{Handler: slog.NewJSONHandler(os.Stdout, nil)})
+	}
+
+	for _, level := range []slog.Level{slog.LevelDebug, slog.LevelInfo, slog.LevelWarn, slog.LevelError} {
+		LogHandlers[level] = &BambooLogHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: level,
+		})}
 	}
 }
 
@@ -98,13 +105,25 @@ type ByteArreayResult struct {
 	Error error
 }
 
-func Init(ctx context.Context) context.Context {
+func InitLogger(ctx context.Context) context.Context {
 	for _, key := range keys {
 		if _, ok := BambooLoggers[key]; ok {
 			ctx = context.WithValue(ctx, key, BambooLoggers[key])
 		}
 	}
 	return ctx
+}
+
+func SetLogLevel(logLevel slog.Level) {
+	for _, key := range keys {
+		if _, ok := BambooLoggers[key]; ok {
+			setLogLevel(key, logLevel)
+		}
+	}
+}
+
+func setLogLevel(contextKey ContextKey, logLevel slog.Level) {
+	BambooLoggers[contextKey] = slog.New(LogHandlers[logLevel])
 }
 
 func WithValue(ctx context.Context, key ContextKey, val any) context.Context {

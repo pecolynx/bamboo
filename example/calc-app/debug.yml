@@ -2,7 +2,8 @@
 app:
   name: calc-app
   numRequests: 2
-  jobTimeoutMSec: 7000
+  jobTimeoutSec: 7
+  jobSec: 1
 workers:
   worker-redis-redis:
     requestProducer:
@@ -21,4 +22,4 @@ trace:
   jaeger:
     endpoint: http://localhost:14268/api/traces
 log:
-  level: debug
+  level: info

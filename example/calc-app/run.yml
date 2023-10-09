@@ -2,7 +2,8 @@
 app:
   name: calc-app
   numRequests: $NUM_REQUESTS
-  jobTimeoutMSec: $JOB_TIMEOUT_M_SEC
+  jobTimeoutSec: $JOB_TIMEOUT_SEC
+  jobSec: $JOB_SEC
 workers:
   worker-redis-redis:
     requestProducer:

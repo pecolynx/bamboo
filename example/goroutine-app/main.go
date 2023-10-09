@@ -42,7 +42,7 @@ func (e *expr) getError() error {
 func (e *expr) workerGoroutine(ctx context.Context, x, y int) int {
 	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 
-	request_id, _ := ctx.Value(bamboo.RequestIDKey).(string)
+	request_id, _ := ctx.Value(bamboo.RequestIDContextKey).(string)
 	headers := map[string]string{
 		bamboo.RequestIDKey: request_id,
 	}
@@ -93,8 +93,9 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
-	appNameContextKey = bamboo.ContextKey(cfg.App.Name)
+	bamboo.InitLogger(ctx)
 
+	appNameContextKey = bamboo.ContextKey(cfg.App.Name)
 	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 	ctx = bamboo.WithLoggerName(ctx, appNameContextKey)
 

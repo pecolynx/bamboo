@@ -5,8 +5,9 @@ option go_package = "github.com/pecolynx/bamboo/example/worker-redis-redis/main"
 package proto;
 
 message RedisRedisParameter {
-  int32   x = 1;
-  int32   y = 2;
+  int32 x = 1;
+  int32 y = 2;
+  int32 jobSec = 3;
 }
 
 message RedisRedisResponse {

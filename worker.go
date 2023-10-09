@@ -86,6 +86,7 @@ func (w *bambooWorker) Run(ctx context.Context) error {
 
 func (w *bambooWorker) run(ctx context.Context) error {
 	logger := GetLoggerFromContext(ctx, BambooWorkerLoggerContextKey)
+
 	logger.DebugContext(ctx, "run")
 	if err := w.ping(ctx); err != nil {
 		return internal.Errorf("ping. err: %w", err)
@@ -111,6 +112,7 @@ func (w *bambooWorker) run(ctx context.Context) error {
 
 func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consumer BambooRequestConsumer, worker chan<- internal.Job) error {
 	logger := GetLoggerFromContext(ctx, BambooWorkerLoggerContextKey)
+
 	logger.DebugContext(ctx, "worker is ready")
 
 	req, err := consumer.Consume(ctx)
@@ -128,6 +130,7 @@ func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consume
 
 	reqCtx := w.logConfigFunc(ctx, req.Headers)
 	logger.DebugContext(reqCtx, "request is received")
+	logger.DebugContext(reqCtx, "", slog.Any("headers", req.Headers))
 
 	if req.HeartbeatIntervalMSec != 0 {
 		if err := w.heartbeatPublisher.Run(reqCtx, req.ResultChannel, int(req.HeartbeatIntervalMSec), done, aborted); err != nil {
@@ -139,7 +142,7 @@ func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consume
 	var carrier propagation.MapCarrier = req.Carrier
 	job := NewWorkerJob(reqCtx, carrier, w.workerFunc, req.Headers, req.Data, w.resultPublisher, req.ResultChannel, done, aborted, w.logConfigFunc, w.metricsEventHandler)
 
-	logger.DebugContext(ctx, "dispatch job to worker")
+	logger.DebugContext(reqCtx, "dispatch job to worker")
 	worker <- job
 
 	return nil

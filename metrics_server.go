@@ -16,7 +16,9 @@ import (
 const readHeaderTimeout = time.Duration(30) * time.Second
 
 func MetricsServerProcess(ctx context.Context, port int, gracefulShutdownTimeSec int) error {
-	logger := GetLoggerFromContext(ctx, "")
+	logger := GetLoggerFromContext(ctx, BambooMetricsServerContextKey)
+	ctx = WithLoggerName(ctx, BambooMetricsServerContextKey)
+
 	router := gin.New()
 	router.Use(gin.Recovery())
 

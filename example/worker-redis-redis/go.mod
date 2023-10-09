@@ -4,7 +4,7 @@ go 1.21.1
 
 require (
 	github.com/go-playground/validator/v10 v10.15.5
-	github.com/pecolynx/bamboo v0.0.2
+	github.com/pecolynx/bamboo v0.0.3
 	go.opentelemetry.io/otel v1.19.0
 	go.opentelemetry.io/otel/sdk v1.19.0
 	golang.org/x/sync v0.4.0

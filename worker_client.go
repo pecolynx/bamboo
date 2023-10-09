@@ -41,6 +41,7 @@ func (c *bambooWorkerClient) Close(ctx context.Context) {
 func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, param []byte) ([]byte, error) {
 	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
 	ctx = WithLoggerName(ctx, BambooWorkerClientLoggerContextKey)
+
 	logger.DebugContext(ctx, "Call")
 
 	resultChannel, err := c.newResultChannelString()
@@ -209,6 +210,7 @@ func (c *bambooWorkerClient) startHeartbeatCheck(ctx context.Context, heartbeatI
 
 func (c *bambooWorkerClient) startTimer(ctx context.Context, timeoutTime time.Duration) <-chan interface{} {
 	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
+
 	if timeoutTime != 0 {
 		timedout := make(chan interface{})
 		time.AfterFunc(timeoutTime, func() {

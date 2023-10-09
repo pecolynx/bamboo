@@ -3,7 +3,6 @@ package helper
 import (
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 
 	"github.com/pecolynx/bamboo"
@@ -30,17 +29,9 @@ func InitLog(appName bamboo.ContextKey, cfg *LogConfig) error {
 		logLevel = slog.LevelWarn
 	}
 
-	handler := &bamboo.BambooLogHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: logLevel,
-	})}
+	bamboo.BambooLoggers[appName] = slog.New(bamboo.LogHandlers[logLevel])
 
-	bamboo.BambooLoggers[appName] = slog.New(handler)
-	bamboo.BambooLoggers[bamboo.BambooWorkerLoggerContextKey] = slog.New(handler)
-	bamboo.BambooLoggers[bamboo.BambooHeartbeatPublisherLoggerContextKey] = slog.New(handler)
-	bamboo.BambooLoggers[bamboo.BambooRequestProducerLoggerContextKey] = slog.New(handler)
-	bamboo.BambooLoggers[bamboo.BambooRequestConsumerLoggerContextKey] = slog.New(handler)
-	bamboo.BambooLoggers[bamboo.BambooResultPublisherLoggerContextKey] = slog.New(handler)
-	bamboo.BambooLoggers[bamboo.BambooResultSubscriberLoggerContextKey] = slog.New(handler)
+	bamboo.SetLogLevel(logLevel)
 
 	return nil
 }

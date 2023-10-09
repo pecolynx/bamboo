@@ -3,6 +3,8 @@ package bamboo
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -48,6 +50,7 @@ func (j *workerJob) Run(ctx context.Context) error {
 	logger := GetLoggerFromContext(ctx, BambooWorkerJobLoggerContextKey)
 	ctx = WithLoggerName(ctx, BambooWorkerLoggerContextKey)
 	defer close(j.done)
+	start := time.Now()
 
 	j.metricsEventHandler.OnIncrNumRunningWorkers()
 	defer j.metricsEventHandler.OnDecrNumRunningWorkers()
@@ -82,6 +85,8 @@ func (j *workerJob) Run(ctx context.Context) error {
 		return internal.Errorf("publisher.Publish. err: %w", err)
 	}
 
+	end := time.Now()
+	logger.DebugContext(ctx, "done", slog.Float64("time", end.Sub(start).Seconds()))
 	j.metricsEventHandler.OnSuccessJob()
 	return nil
 }

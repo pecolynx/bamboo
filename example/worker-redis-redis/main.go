@@ -41,22 +41,9 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
+	bamboo.InitLogger(ctx)
+
 	appNameContextKey = bamboo.ContextKey(cfg.App.Name)
-
-	debugHandler := &bamboo.BambooLogHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	})}
-
-	bamboo.BambooLoggers[appNameContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooWorkerLoggerContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooWorkerJobLoggerContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooWorkerClientLoggerContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooRequestProducerLoggerContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooRequestConsumerLoggerContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooResultPublisherLoggerContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooResultSubscriberLoggerContextKey] = slog.New(debugHandler)
-	bamboo.Init(ctx)
-
 	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 	ctx = bamboo.WithValue(ctx, bamboo.LoggerNameContextKey, cfg.App.Name)
 
@@ -139,7 +126,7 @@ func workerFunc(ctx context.Context, headers map[string]string, reqBytes []byte,
 		return nil, internal.Errorf("proto.Unmarshal. err: %w", err)
 	}
 
-	time.Sleep(time.Second * 1)
+	time.Sleep(time.Duration(req.JobSec) * time.Second)
 
 	answer := req.X * req.Y
 	logger.InfoContext(ctx, fmt.Sprintf("answer: %d", answer))
