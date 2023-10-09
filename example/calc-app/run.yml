@@ -1,24 +1,24 @@
 ---
 app:
   name: calc-app
-  numRequests: 2
-  jobTimeoutMSec: 7000
+  numRequests: $NUM_REQUESTS
+  jobTimeoutMSec: $JOB_TIMEOUT_M_SEC
 workers:
   worker-redis-redis:
     requestProducer:
       type: redis
       redis:
         addrs:
-          - localhost:6379
+          - $REDIS_HOST:$REDIS_PORT
         channel: redis-redis
     resultSubscriber:
       type: redis
       redis:
         addrs:
-          - localhost:6379
+          - $REDIS_HOST:$REDIS_PORT
 trace:
   exporter: jaeger
   jaeger:
-    endpoint: http://localhost:14268/api/traces
+    endpoint: http://$JAEGER_HOST:$JAEGER_PORT/api/traces
 log:
   level: debug

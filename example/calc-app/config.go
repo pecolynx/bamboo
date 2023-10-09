@@ -18,7 +18,9 @@ var (
 )
 
 type AppConfig struct {
-	Name string `yaml:"name" validate:"required"`
+	Name           string `yaml:"name" validate:"required"`
+	NumRequests    int    `yaml:"numRequests" validate:"required"`
+	JobTimeoutMSec int    `yaml:"jobTimeoutMSec"`
 }
 
 type Config struct {
@@ -29,6 +31,7 @@ type Config struct {
 }
 
 //go:embed debug.yml
+//go:embed run.yml
 var config embed.FS
 
 func LoadConfig(appMode string) (*Config, error) {

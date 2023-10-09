@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -22,9 +23,20 @@ import (
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/worker-redis-redis")
 var appNameContextKey bamboo.ContextKey
 
+func getValue(values ...string) string {
+	for _, v := range values {
+		if len(v) != 0 {
+			return v
+		}
+	}
+	return ""
+}
+
 func main() {
 	ctx := context.Background()
-	appMode := "debug"
+	appModeParam := flag.String("app_mode", "", "")
+	flag.Parse()
+	appMode := getValue(*appModeParam, os.Getenv("APP_MODE"), "debug")
 
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans

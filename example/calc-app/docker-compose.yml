@@ -1,0 +1,21 @@
+---
+version: '3'
+services:
+  dev-calc-app:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: bamboo-calc-app
+    environment:
+      APP_MODE: run
+      NUM_REQUESTS: 10
+      JOB_TIMEOUT_M_SEC: 7000
+      REDIS_HOST: dev-redis
+      REDIS_PORT: 6379
+      JAEGER_HOST: dev-jaeger
+      JAEGER_PORT: 14268
+    networks:
+      - bamboo-network
+networks:
+  bamboo-network:
+    name: bamboo-network

@@ -7,6 +7,8 @@ type MetricsEventHandler interface {
 	OnSuccessJob()
 	OnInternalErrorJob()
 	OnInvalidArgumentJob()
+	OnIncrNumRunningWorkers()
+	OnDecrNumRunningWorkers()
 }
 
 type emptyEventHandler struct {
@@ -28,11 +30,18 @@ func (e *emptyEventHandler) OnInternalErrorJob() {
 func (e *emptyEventHandler) OnInvalidArgumentJob() {
 }
 
+func (e *emptyEventHandler) OnIncrNumRunningWorkers() {
+}
+
+func (e *emptyEventHandler) OnDecrNumRunningWorkers() {
+}
+
 type prometheusEventHandler struct {
 	receiveRequestCounter     prometheus.Counter
 	successJobCounter         prometheus.Counter
 	internalErrorJobCounter   prometheus.Counter
 	invalidArgumentJobCounter prometheus.Counter
+	numRunningWorkersGauge    prometheus.Gauge
 }
 
 func NewPrometheusEventHandler() MetricsEventHandler {
@@ -52,6 +61,10 @@ func NewPrometheusEventHandler() MetricsEventHandler {
 		prometheus.CounterOpts{
 			Name: "bamboo_jobs_invalid_argument",
 		})
+	numRunningWorkersGauge := prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "bamboo_num_running_workers",
+		})
 
 	if err := prometheus.Register(receiveRequestCounter); err != nil {
 		panic(err)
@@ -65,12 +78,16 @@ func NewPrometheusEventHandler() MetricsEventHandler {
 	if err := prometheus.Register(invalidArgumentJobCounter); err != nil {
 		panic(err)
 	}
+	if err := prometheus.Register(numRunningWorkersGauge); err != nil {
+		panic(err)
+	}
 
 	return &prometheusEventHandler{
 		receiveRequestCounter:     receiveRequestCounter,
 		successJobCounter:         successJobCounter,
 		internalErrorJobCounter:   internalErrorJobCounter,
 		invalidArgumentJobCounter: invalidArgumentJobCounter,
+		numRunningWorkersGauge:    numRunningWorkersGauge,
 	}
 }
 
@@ -88,4 +105,12 @@ func (e *prometheusEventHandler) OnInternalErrorJob() {
 
 func (e *prometheusEventHandler) OnInvalidArgumentJob() {
 	go func() { e.invalidArgumentJobCounter.Inc() }()
+}
+
+func (e *prometheusEventHandler) OnIncrNumRunningWorkers() {
+	go func() { e.numRunningWorkersGauge.Inc() }()
+}
+
+func (e *prometheusEventHandler) OnDecrNumRunningWorkers() {
+	go func() { e.numRunningWorkersGauge.Dec() }()
 }
