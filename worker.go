@@ -130,7 +130,6 @@ func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consume
 
 	reqCtx := w.logConfigFunc(ctx, req.Headers)
 	logger.DebugContext(reqCtx, "request is received")
-	logger.DebugContext(reqCtx, "", slog.Any("headers", req.Headers))
 
 	if req.HeartbeatIntervalMSec != 0 {
 		if err := w.heartbeatPublisher.Run(reqCtx, req.ResultChannel, int(req.HeartbeatIntervalMSec), done, aborted); err != nil {
