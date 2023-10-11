@@ -8,8 +8,9 @@ services:
     container_name: bamboo-calc-app
     environment:
       APP_MODE: run
-      NUM_REQUESTS: 10
-      JOB_TIMEOUT_M_SEC: 7000
+      NUM_REQUESTS: 3
+      JOB_TIMEOUT_SEC: 80
+      JOB_SEC: 30
       REDIS_HOST: dev-redis
       REDIS_PORT: 6379
       JAEGER_HOST: dev-jaeger

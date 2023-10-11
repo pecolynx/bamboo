@@ -15,11 +15,15 @@ services:
       - 29092:29092
     depends_on:
       - dev-zookeeper
+    networks:
+      - bamboo-network
   dev-zookeeper:
     image: confluentinc/cp-zookeeper
     container_name: bamboo-zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 32181
+    networks:
+      - bamboo-network
   dev-redis:
     image: "redis:7.0"
     container_name: bamboo-redis
@@ -33,6 +37,8 @@ services:
     ports:
       - 14268:14268
       - 16686:16686
+    networks:
+      - bamboo-network
   dev-prometheus:
     image: prom/prometheus
     container_name: bamboo-prometheus

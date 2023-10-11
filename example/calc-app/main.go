@@ -46,10 +46,10 @@ func (e *expr) getError() error {
 	return nil
 }
 
-func (e *expr) workerRedisRedis(ctx context.Context, x, y int, jobTimeoutMSec int) int {
+func (e *expr) workerRedisRedis(ctx context.Context, x, y int, jobTimeoutSec int, jobSec int) int {
 	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 
-	request_id, _ := ctx.Value(bamboo.RequestIDKey).(string)
+	request_id, _ := ctx.Value(bamboo.RequestIDContextKey).(string)
 	headers := map[string]string{
 		bamboo.RequestIDKey: request_id,
 	}
@@ -59,7 +59,7 @@ func (e *expr) workerRedisRedis(ctx context.Context, x, y int, jobTimeoutMSec in
 		return 0
 	}
 
-	p1 := RedisRedisParameter{X: int32(x), Y: int32(y)}
+	p1 := RedisRedisParameter{X: int32(x), Y: int32(y), JobSec: int32(jobSec)}
 	paramBytes, err := proto.Marshal(&p1)
 	if err != nil {
 		e.setError(internal.Errorf("proto.Marshal. err: %w", err))
@@ -72,7 +72,7 @@ func (e *expr) workerRedisRedis(ctx context.Context, x, y int, jobTimeoutMSec in
 		return 0
 	}
 
-	respBytes, err := workerClient.Call(ctx, 2000, jobTimeoutMSec, headers, paramBytes)
+	respBytes, err := workerClient.Call(ctx, 2000, jobTimeoutSec*1000, headers, paramBytes)
 	if err != nil {
 		e.setError(internal.Errorf("app.Call(worker-redis-redis). err: %w", err))
 		return 0
@@ -104,27 +104,15 @@ func main() {
 	cfg, tp := initialize(ctx, appMode)
 	defer tp.ForceFlush(ctx) // flushes any pending spans
 
+	bamboo.InitLogger(ctx)
+
 	appNameContextKey = bamboo.ContextKey(cfg.App.Name)
-
-	debugHandler := &bamboo.BambooLogHandler{Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	})}
-
-	bamboo.BambooLoggers[appNameContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooWorkerLoggerContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooWorkerJobLoggerContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooWorkerClientLoggerContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooRequestProducerLoggerContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooRequestConsumerLoggerContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooResultPublisherLoggerContextKey] = slog.New(debugHandler)
-	bamboo.BambooLoggers[bamboo.BambooResultSubscriberLoggerContextKey] = slog.New(debugHandler)
-	bamboo.Init(ctx)
-
 	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 	ctx = bamboo.WithLoggerName(ctx, appNameContextKey)
 
-	factory := helper.NewBambooFactory()
+	logger.DebugContext(ctx, fmt.Sprintf("cfg: %+v", cfg))
 
+	factory := helper.NewBambooFactory()
 	workerClients := map[string]bamboo.BambooWorkerClient{}
 	for k, v := range cfg.Workers {
 		workerClient, err := factory.CreateBambooWorkerClient(ctx, k, v)
@@ -155,7 +143,7 @@ func main() {
 
 			expr := expr{workerClients: workerClients}
 
-			a := expr.workerRedisRedis(logCtx, 3, 5, cfg.App.JobTimeoutMSec)
+			a := expr.workerRedisRedis(logCtx, 3, 5, cfg.App.JobTimeoutSec, cfg.App.JobSec)
 			// b := expr.workerRedisRedis(logCtx, a, 7)
 
 			if expr.getError() != nil {
