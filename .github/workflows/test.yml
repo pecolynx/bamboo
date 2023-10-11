@@ -8,7 +8,7 @@ jobs:
         go-version: [1.21.x]
         os: [ubuntu-latest]
         workdir:
-          - ./
+          - .
           - ./example/worker-redis-redis
           - ./example/calc-app
     runs-on: ${{ matrix.os }}
