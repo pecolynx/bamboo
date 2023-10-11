@@ -1,7 +1,8 @@
 # bamboo
 
-bamboo is a library for distributing work across machines with asynchronous communication.
+[![test workflow](https://github.com/pecolynx/bamboo/actions/workflows/test.yml/badge.svg)](https://github.com/pecolynx/bamboo/actions/workflows/test.yml)
 
+bamboo is a library for distributing work across machines with asynchronous communication.
 
 ## Overview
 

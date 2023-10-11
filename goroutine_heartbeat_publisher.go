@@ -6,6 +6,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
 )
 
@@ -37,7 +38,7 @@ func (h *goroutineBambooHeartbeatPublisher) Run(ctx context.Context, resultChann
 
 	pubsub, err := h.pubsubMap.GetChannel(resultChannel)
 	if err != nil {
-		return err
+		return internal.Errorf("pubsubMap.GetChannel. resultChannel: %s, err: %w", resultChannel, err)
 	}
 
 	if heartbeatIntervalMSec == 0 {

@@ -8,10 +8,17 @@ jobs:
         go-version: [1.21.x]
         os: [ubuntu-latest]
         workdir:
-          - ./
+          - .
           - ./example/worker-redis-redis
           - ./example/calc-app
     runs-on: ${{ matrix.os }}
+    services:
+      redis:
+        image: redis/redis-stack-server:edge
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+        ports:
+          - 6379:6379
     steps:
       # - name: Setup MySQL
       #   uses: mirromutth/mysql-action@v1.1
