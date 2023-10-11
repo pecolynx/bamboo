@@ -1,5 +1,7 @@
 # bamboo example
 
+[![test workflow](https://github.com/pecolynx/bamboo/actions/workflows/test.yml/badge.svg)](https://github.com/pecolynx/bamboo/actions/workflows/test.yml)
+
 ## Prerequisite
 
 * docker compose
