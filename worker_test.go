@@ -134,41 +134,41 @@ func Test_WorkerClient_Call(t *testing.T) {
 		inputs  inputs
 		outputs outputs
 	}{
-		// {
-		// 	name: "Success_without_Heartbeat",
-		// 	inputs: inputs{
-		// 		heartbeatIntervalMSec: 0,
-		// 		jobTimeoutMSec:        200,
-		// 		waitMSec:              100,
-		// 	},
-		// 	outputs: outputs{
-		// 		callError: nil,
-		// 	},
-		// },
-		// {
-		// 	name: "ConnectTimedout",
-		// 	inputs: inputs{
-		// 		debugPublishDelay:     2000 * time.Millisecond,
-		// 		heartbeatIntervalMSec: 0,
-		// 		connectTimeoutMSec:    10,
-		// 		jobTimeoutMSec:        5000,
-		// 		waitMSec:              100,
-		// 	},
-		// 	outputs: outputs{
-		// 		callError: bamboo.ErrConnectTimedout,
-		// 	},
-		// },
-		// {
-		// 	name: "JobTimedout",
-		// 	inputs: inputs{
-		// 		heartbeatIntervalMSec: 0,
-		// 		jobTimeoutMSec:        100,
-		// 		waitMSec:              200,
-		// 	},
-		// 	outputs: outputs{
-		// 		callError: bamboo.ErrJobTimedout,
-		// 	},
-		// },
+		{
+			name: "Success_without_Heartbeat",
+			inputs: inputs{
+				heartbeatIntervalMSec: 0,
+				jobTimeoutMSec:        200,
+				waitMSec:              100,
+			},
+			outputs: outputs{
+				callError: nil,
+			},
+		},
+		{
+			name: "ConnectTimedout",
+			inputs: inputs{
+				debugPublishDelay:     2000 * time.Millisecond,
+				heartbeatIntervalMSec: 0,
+				connectTimeoutMSec:    10,
+				jobTimeoutMSec:        5000,
+				waitMSec:              100,
+			},
+			outputs: outputs{
+				callError: bamboo.ErrConnectTimedout,
+			},
+		},
+		{
+			name: "JobTimedout",
+			inputs: inputs{
+				heartbeatIntervalMSec: 0,
+				jobTimeoutMSec:        100,
+				waitMSec:              200,
+			},
+			outputs: outputs{
+				callError: bamboo.ErrJobTimedout,
+			},
+		},
 		{
 			name: "Success_with_Heartbeat",
 			inputs: inputs{
@@ -180,18 +180,18 @@ func Test_WorkerClient_Call(t *testing.T) {
 				callError: nil,
 			},
 		},
-		// {
-		// 	name: "Aborted",
-		// 	inputs: inputs{
-		// 		heartbeatIntervalMSec:   100,
-		// 		jobTimeoutMSec:          800,
-		// 		waitMSec:                400,
-		// 		emptyHeartbeatPublisher: true,
-		// 	},
-		// 	outputs: outputs{
-		// 		callError: bamboo.ErrAborted,
-		// 	},
-		// },
+		{
+			name: "Aborted",
+			inputs: inputs{
+				heartbeatIntervalMSec:   100,
+				jobTimeoutMSec:          800,
+				waitMSec:                400,
+				emptyHeartbeatPublisher: true,
+			},
+			outputs: outputs{
+				callError: bamboo.ErrAborted,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
