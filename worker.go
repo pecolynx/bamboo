@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 
 	"github.com/pecolynx/bamboo/internal"
+	pb "github.com/pecolynx/bamboo/proto"
 )
 
 type bambooWorker struct {
@@ -73,7 +74,7 @@ func (w *bambooWorker) Run(ctx context.Context) error {
 	backOff := backoff.WithContext(w.newBackOff(), ctx)
 
 	notify := func(err error, d time.Duration) {
-		logger.ErrorContext(ctx, "redis reading error", slog.Any("err", err))
+		logger.ErrorContext(ctx, "run error", slog.Any("err", err))
 	}
 
 	err := backoff.RetryNotify(operation, backOff, notify)
@@ -130,6 +131,11 @@ func (w *bambooWorker) consumeRequestAndDispatchJob(ctx context.Context, consume
 
 	reqCtx := w.logConfigFunc(ctx, req.Headers)
 	logger.DebugContext(reqCtx, "request is received")
+
+	if err := w.resultPublisher.Publish(reqCtx, req.ResultChannel, pb.ResponseType_ACCEPTED, nil); err != nil {
+		worker <- internal.NewEmptyJob()
+		return internal.Errorf("resultPublisher.Publish. err: %w", err)
+	}
 
 	if req.HeartbeatIntervalMSec != 0 {
 		if err := w.heartbeatPublisher.Run(reqCtx, req.ResultChannel, int(req.HeartbeatIntervalMSec), done, aborted); err != nil {

@@ -5,6 +5,7 @@ package bamboo
 import (
 	context "context"
 
+	proto "github.com/pecolynx/bamboo/proto"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -63,13 +64,13 @@ func (_c *BambooResultPublisher_Ping_Call) RunAndReturn(run func(context.Context
 	return _c
 }
 
-// Publish provides a mock function with given fields: ctx, resultChannel, result
-func (_m *BambooResultPublisher) Publish(ctx context.Context, resultChannel string, result []byte) error {
-	ret := _m.Called(ctx, resultChannel, result)
+// Publish provides a mock function with given fields: ctx, resultChannel, responseType, data
+func (_m *BambooResultPublisher) Publish(ctx context.Context, resultChannel string, responseType proto.ResponseType, data []byte) error {
+	ret := _m.Called(ctx, resultChannel, responseType, data)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []byte) error); ok {
-		r0 = rf(ctx, resultChannel, result)
+	if rf, ok := ret.Get(0).(func(context.Context, string, proto.ResponseType, []byte) error); ok {
+		r0 = rf(ctx, resultChannel, responseType, data)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -85,14 +86,15 @@ type BambooResultPublisher_Publish_Call struct {
 // Publish is a helper method to define mock.On call
 //   - ctx context.Context
 //   - resultChannel string
-//   - result []byte
-func (_e *BambooResultPublisher_Expecter) Publish(ctx interface{}, resultChannel interface{}, result interface{}) *BambooResultPublisher_Publish_Call {
-	return &BambooResultPublisher_Publish_Call{Call: _e.mock.On("Publish", ctx, resultChannel, result)}
+//   - responseType proto.ResponseType
+//   - data []byte
+func (_e *BambooResultPublisher_Expecter) Publish(ctx interface{}, resultChannel interface{}, responseType interface{}, data interface{}) *BambooResultPublisher_Publish_Call {
+	return &BambooResultPublisher_Publish_Call{Call: _e.mock.On("Publish", ctx, resultChannel, responseType, data)}
 }
 
-func (_c *BambooResultPublisher_Publish_Call) Run(run func(ctx context.Context, resultChannel string, result []byte)) *BambooResultPublisher_Publish_Call {
+func (_c *BambooResultPublisher_Publish_Call) Run(run func(ctx context.Context, resultChannel string, responseType proto.ResponseType, data []byte)) *BambooResultPublisher_Publish_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].([]byte))
+		run(args[0].(context.Context), args[1].(string), args[2].(proto.ResponseType), args[3].([]byte))
 	})
 	return _c
 }
@@ -102,7 +104,7 @@ func (_c *BambooResultPublisher_Publish_Call) Return(_a0 error) *BambooResultPub
 	return _c
 }
 
-func (_c *BambooResultPublisher_Publish_Call) RunAndReturn(run func(context.Context, string, []byte) error) *BambooResultPublisher_Publish_Call {
+func (_c *BambooResultPublisher_Publish_Call) RunAndReturn(run func(context.Context, string, proto.ResponseType, []byte) error) *BambooResultPublisher_Publish_Call {
 	_c.Call.Return(run)
 	return _c
 }

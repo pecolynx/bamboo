@@ -133,6 +133,7 @@ func Test_bambooWorker_run(t *testing.T) {
 			consumer.On("Ping", ctxCancel).Return(nil)
 			resultPublisher := mocks.BambooResultPublisher{}
 			resultPublisher.On("Ping", ctxCancel).Return(nil)
+			resultPublisher.On("Publish", anythingOfContext, "RESULT-CHANNEL", pb.ResponseType_ACCEPTED, []byte(nil)).Return(nil)
 			heartbeatPublisher := mocks.BambooHeartbeatPublisher{}
 			heartbeatPublisher.On("Ping", ctxCancel).Return(nil)
 
@@ -266,11 +267,14 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 
 			consumer := mocks.BambooRequestConsumer{}
 			consumer.On("Consume", ctx).Return(&req, tt.inputs.consumeError)
+			resultPublisher := mocks.BambooResultPublisher{}
+			resultPublisher.On("Publish", anythingOfContext, "RESULT-CHANNEL", pb.ResponseType_ACCEPTED, []byte(nil)).Return(nil)
 			heartbeatPublisher := mocks.BambooHeartbeatPublisher{}
 			heartbeatPublisher.On("Run", anythingOfContext, "RESULT-CHANNEL", tt.inputs.heartbeatIntervalMSec, anythingOfChanIn, anythingOfChanIn).Return(tt.inputs.heartbeatPublishderRunError)
 
 			worker := bambooWorker{
 				heartbeatPublisher:  &heartbeatPublisher,
+				resultPublisher:     &resultPublisher,
 				logConfigFunc:       logConfigFunc,
 				metricsEventHandler: NewEmptyEventHandler(),
 			}
@@ -291,7 +295,7 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			assert.Equal(t, hasJob, tt.outputs.hasJob)
+			assert.Equal(t, tt.outputs.hasJob, hasJob)
 			assert.Len(t, stringList.list, tt.outputs.numberOfLogs)
 
 			for i, s := range stringList.list {
@@ -301,17 +305,17 @@ func Test_bambooWorker_consumeRequestAndDispatchJob(t *testing.T) {
 
 				switch i {
 				case 0:
-					assert.Equal(t, logStruct.Level, "DEBUG")
-					assert.Equal(t, logStruct.LoggerName, "BambooWorker")
-					assert.Equal(t, logStruct.Message, "worker is ready")
+					assert.Equal(t, "DEBUG", logStruct.Level)
+					assert.Equal(t, "BambooWorker", logStruct.LoggerName)
+					assert.Equal(t, "worker is ready", logStruct.Message)
 				case 1:
-					assert.Equal(t, logStruct.Level, "DEBUG")
-					assert.Equal(t, logStruct.LoggerName, "BambooWorker")
-					assert.Equal(t, logStruct.Message, "request is received")
+					assert.Equal(t, "DEBUG", logStruct.Level)
+					assert.Equal(t, "BambooWorker", logStruct.LoggerName)
+					assert.Equal(t, "request is received", logStruct.Message)
 				case 2:
-					assert.Equal(t, logStruct.Level, "DEBUG")
-					assert.Equal(t, logStruct.LoggerName, "BambooWorker")
-					assert.Equal(t, logStruct.Message, "dispatch job to worker")
+					assert.Equal(t, "DEBUG", logStruct.Level)
+					assert.Equal(t, "BambooWorker", logStruct.LoggerName)
+					assert.Equal(t, "dispatch job to worker", logStruct.Message)
 				}
 				t.Logf("err %s", s)
 			}

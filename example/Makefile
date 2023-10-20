@@ -14,6 +14,12 @@ gen-proto:
         --go-grpc_out=./ --go-grpc_opt=paths=source_relative \
         goroutine_app.proto && \
 	popd
+
+	@pushd ./helloworld-app && \
+	protoc --go_out=./ --go_opt=paths=source_relative \
+        --go-grpc_out=./ --go-grpc_opt=paths=source_relative \
+        helloworld_app.proto && \
+	popd
 	
 .PHONY: run-worker-redis-redis
 run-worker-redis-redis:

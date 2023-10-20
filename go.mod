@@ -1,6 +1,6 @@
 module github.com/pecolynx/bamboo
 
-go 1.21.1
+go 1.21.3
 
 require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.20.0

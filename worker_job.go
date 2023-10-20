@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/pecolynx/bamboo/internal"
+	pb "github.com/pecolynx/bamboo/proto"
 )
 
 type WorkerJob interface {
@@ -76,13 +77,18 @@ func (j *workerJob) Run(ctx context.Context) error {
 	result, err := j.workerFunc(ctx, j.headers, j.parameter, j.aborted)
 	if err != nil {
 		j.metricsEventHandler.OnInternalErrorJob()
+		if err := j.resultPublisher.Publish(ctx, j.resultChannel, pb.ResponseType_INTERNAL_ERROR, nil); err != nil {
+			j.metricsEventHandler.OnInternalErrorJob()
+			return internal.Errorf("resultPublisher.Publish. err: %w", err)
+		}
+
 		return internal.Errorf("workerFunc. err: %w", err)
 	}
 
 	logger.DebugContext(ctx, fmt.Sprintf("publish result. resultChannel: %s", j.resultChannel))
-	if err := j.resultPublisher.Publish(ctx, j.resultChannel, result); err != nil {
+	if err := j.resultPublisher.Publish(ctx, j.resultChannel, pb.ResponseType_DATA, result); err != nil {
 		j.metricsEventHandler.OnInternalErrorJob()
-		return internal.Errorf("publisher.Publish. err: %w", err)
+		return internal.Errorf("resultPublisher.Publish. err: %w", err)
 	}
 
 	end := time.Now()

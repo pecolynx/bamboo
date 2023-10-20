@@ -46,7 +46,7 @@ func (e *expr) getError() error {
 	return nil
 }
 
-func (e *expr) workerRedisRedis(ctx context.Context, x, y int, jobTimeoutSec int, jobSec int) int {
+func (e *expr) workerRedisRedis(ctx context.Context, x, y int, connectTimeoutSec, jobTimeoutSec int, jobSec int) int {
 	logger := bamboo.GetLoggerFromContext(ctx, appNameContextKey)
 
 	request_id, _ := ctx.Value(bamboo.RequestIDContextKey).(string)
@@ -72,7 +72,7 @@ func (e *expr) workerRedisRedis(ctx context.Context, x, y int, jobTimeoutSec int
 		return 0
 	}
 
-	respBytes, err := workerClient.Call(ctx, 2000, jobTimeoutSec*1000, headers, paramBytes)
+	respBytes, err := workerClient.Call(ctx, 2000, connectTimeoutSec*1000, jobTimeoutSec*1000, headers, paramBytes)
 	if err != nil {
 		e.setError(internal.Errorf("app.Call(worker-redis-redis). err: %w", err))
 		return 0
@@ -143,7 +143,7 @@ func main() {
 
 			expr := expr{workerClients: workerClients}
 
-			a := expr.workerRedisRedis(logCtx, 3, 5, cfg.App.JobTimeoutSec, cfg.App.JobSec)
+			a := expr.workerRedisRedis(logCtx, 3, 5, cfg.App.ConnectTimeoutSec, cfg.App.JobTimeoutSec, cfg.App.JobSec)
 			// b := expr.workerRedisRedis(logCtx, a, 7)
 
 			if expr.getError() != nil {

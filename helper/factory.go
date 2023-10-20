@@ -44,7 +44,7 @@ func (f *bambooFactory) CreateBambooWorkerClient(ctx context.Context, workerName
 		}, cfg.RequestProducer.Redis.Channel)
 	} else if cfg.RequestProducer.Type == "goroutine" {
 		if _, ok := f.queueMap[cfg.RequestProducer.Goroutine.Channel]; !ok {
-			f.queueMap[cfg.RequestProducer.Goroutine.Channel] = make(chan []byte)
+			f.queueMap[cfg.RequestProducer.Goroutine.Channel] = make(chan []byte, 1)
 		}
 		queue := f.queueMap[cfg.RequestProducer.Goroutine.Channel]
 		rp = bamboo.NewGoroutineBambooRequestProducer(ctx, workerName, queue)
@@ -79,7 +79,7 @@ func (f *bambooFactory) CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.
 		resultPublisher = bamboo.NewRedisBambooResultPublisher(publisherOptions)
 		heartbeatPublisher = bamboo.NewRedisBambooHeartbeatPublisher(publisherOptions)
 	} else if cfg.Publisher.Type == "goroutine" {
-		resultPublisher = bamboo.NewGoroutineBambooResultPublisher(f.pubsubMap)
+		resultPublisher = bamboo.NewGoroutineBambooResultPublisher(f.pubsubMap, 0)
 		heartbeatPublisher = bamboo.NewGoroutineBambooHeartbeatPublisher(f.pubsubMap)
 	} else {
 		return nil, fmt.Errorf("invalid publisher type: %s", cfg.Publisher.Type)

@@ -65,7 +65,7 @@ func (e *expr) workerGoroutine(ctx context.Context, x, y int) int {
 		return 0
 	}
 
-	respBytes, err := workerClient.Call(ctx, 0, 0, headers, paramBytes)
+	respBytes, err := workerClient.Call(ctx, 0, 0, 0, headers, paramBytes)
 	if err != nil {
 		e.setError(internal.Errorf("app.Call(worker-goroutine). err: %w", err))
 		return 0

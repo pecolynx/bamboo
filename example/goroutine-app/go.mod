@@ -1,3 +1,3 @@
 module github.com/pecolynx/bamboo/example/goroutine-app
 
-go 1.21.1
+go 1.21.3

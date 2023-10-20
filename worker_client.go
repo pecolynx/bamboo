@@ -15,7 +15,7 @@ import (
 type BambooWorkerClient interface {
 	Ping(ctx context.Context) error
 	Close(ctx context.Context)
-	Call(ctx context.Context, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, param []byte) ([]byte, error)
+	Call(ctx context.Context, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec int, headers map[string]string, param []byte) ([]byte, error)
 }
 
 type bambooWorkerClient struct {
@@ -38,9 +38,11 @@ func (c *bambooWorkerClient) Close(ctx context.Context) {
 	defer c.requestProducer.Close(ctx)
 }
 
-func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, param []byte) ([]byte, error) {
+func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec int, headers map[string]string, param []byte) ([]byte, error) {
 	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
 	ctx = WithLoggerName(ctx, BambooWorkerClientLoggerContextKey)
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(jobTimeoutMSec+1000)*time.Millisecond)
+	defer cancel()
 
 	logger.DebugContext(ctx, "Call")
 
@@ -63,7 +65,7 @@ func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec int
 			}
 		}
 
-		resultBytes, err := c.subscribe(ctx, resultChannel, heartbeatIntervalMSec, jobTimeoutMSec)
+		resultBytes, err := c.subscribe(ctx, resultChannel, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec)
 		if err != nil {
 			sendResult(&ByteArreayResult{Value: nil, Error: err})
 			return
@@ -82,7 +84,7 @@ func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec int
 	case <-ctx.Done():
 		return nil, internal.Errorf("context canceled. err: %w", ErrContextCanceled)
 	case <-timedout:
-		return nil, internal.Errorf("timedout. err: %w", ErrTimedout)
+		return nil, internal.Errorf("job timedout. err: %w", ErrJobTimedout)
 	case result := <-ch:
 		if result.Error != nil {
 			return nil, result.Error
@@ -91,7 +93,7 @@ func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec int
 	}
 }
 
-func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int) ([]byte, error) {
+func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec int) ([]byte, error) {
 	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
 	logger.DebugContext(ctx, "subscribe")
 
@@ -112,6 +114,9 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 	c1 := make(chan ByteArreayResult, 1)
 	done := make(chan struct{})
 
+	connectTimedout := make(chan struct{})
+	defer close(connectTimedout)
+
 	aborted := make(chan struct{})
 	defer close(aborted)
 
@@ -123,7 +128,7 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 		defer close(c1)
 		defer close(done)
 
-		c.subscribeLoop(ctx, subscribeFunc, c1, heartbeat)
+		c.subscribeLoop(ctx, subscribeFunc, heartbeat, connectTimeoutMSec, connectTimedout, c1)
 	}()
 
 	if heartbeatIntervalMSec != 0 {
@@ -133,6 +138,8 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 	select {
 	case <-ctx.Done():
 		return nil, internal.Errorf("context canceled. err: %w", ErrContextCanceled)
+	case <-connectTimedout:
+		return nil, internal.Errorf("connect timedout. err: %w", ErrConnectTimedout)
 	case <-aborted:
 		return nil, internal.Errorf("aborted. err: %w", ErrAborted)
 	case resp := <-c1:
@@ -143,31 +150,64 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 	}
 }
 
-func (c *bambooWorkerClient) subscribeLoop(ctx context.Context, subscribeFunc SubscribeFunc, result chan<- ByteArreayResult, heartbeat chan<- int64) {
+func (c *bambooWorkerClient) subscribeLoop(ctx context.Context, subscribeFunc SubscribeFunc, heartbeat chan<- int64, connectTimeoutMSec int, connectTimedout chan<- struct{}, result chan<- ByteArreayResult) {
 	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
+	connectTimedoutTimer := time.NewTimer(time.Duration(connectTimeoutMSec) * time.Millisecond)
 
-	for {
-		resp, err := subscribeFunc(ctx)
-		if err != nil {
-			if errors.Is(err, ErrContextCanceled) {
-				logger.DebugContext(ctx, "context canceled")
-				return
-			} else {
-				result <- ByteArreayResult{Value: nil, Error: err}
+	type RespOrError struct {
+		Resp  *pb.WorkerResponse
+		Error error
+	}
+
+	respOrErrorCh := make(chan RespOrError)
+
+	go func() {
+		defer close(respOrErrorCh)
+		for {
+			resp, err := subscribeFunc(ctx)
+			respOrErrorCh <- RespOrError{Resp: resp, Error: err}
+			if err != nil {
 				return
 			}
 		}
+	}()
 
-		switch resp.Type {
-		case pb.ResponseType_HEARTBEAT:
-			heartbeat <- time.Now().UnixMilli()
-		case pb.ResponseType_DATA:
-			result <- ByteArreayResult{Value: resp.Data, Error: nil}
-			return
-		case pb.ResponseType_ABORTED:
-		case pb.ResponseType_ACCEPTED:
-		case pb.ResponseType_INTERNAL_ERROR:
-		case pb.ResponseType_INVALID_ARGUMENT:
+	for {
+		select {
+		case <-connectTimedoutTimer.C:
+			if connectTimeoutMSec != 0 {
+				connectTimedout <- struct{}{}
+				return
+			}
+		case respOrError := <-respOrErrorCh:
+			resp, err := respOrError.Resp, respOrError.Error
+			if err != nil {
+				if errors.Is(err, ErrContextCanceled) {
+					logger.DebugContext(ctx, "context canceled")
+					return
+				} else {
+					result <- ByteArreayResult{Value: nil, Error: err}
+					return
+				}
+			}
+
+			switch resp.Type {
+			case pb.ResponseType_HEARTBEAT:
+				heartbeat <- time.Now().UnixMilli()
+			case pb.ResponseType_DATA:
+				result <- ByteArreayResult{Value: resp.Data, Error: nil}
+				return
+			case pb.ResponseType_ACCEPTED:
+				logger.DebugContext(ctx, "job is accepted")
+				connectTimedoutTimer.Stop()
+			case pb.ResponseType_ABORTED:
+			case pb.ResponseType_INTERNAL_ERROR:
+				result <- ByteArreayResult{Value: nil, Error: ErrInternalError}
+				return
+			case pb.ResponseType_INVALID_ARGUMENT:
+				result <- ByteArreayResult{Value: nil, Error: ErrInvalidArgument}
+				return
+			}
 		}
 	}
 }

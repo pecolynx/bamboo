@@ -9,7 +9,6 @@ workers:
         channel: goroutine-app
     resultSubscriber:
       type: goroutine
-      goroutine:
 worker:
   consumer:
     type: goroutine
