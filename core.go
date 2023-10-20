@@ -78,7 +78,7 @@ type BambooResultSubscriber interface {
 
 type BambooResultPublisher interface {
 	Ping(ctx context.Context) error
-	Publish(ctx context.Context, resultChannel string, result []byte) error
+	Publish(ctx context.Context, resultChannel string, responseType pb.ResponseType, data []byte) error
 }
 
 type BambooHeartbeatPublisher interface {
@@ -96,7 +96,10 @@ type WorkerFunc func(ctx context.Context, headers map[string]string, data []byte
 
 type LogConfigFunc func(ctx context.Context, headers map[string]string) context.Context
 
-var ErrTimedout = errors.New("Timedout")
+var ErrConnectTimedout = errors.New("ConnectTimedout")
+var ErrJobTimedout = errors.New("JobTimedout")
+var ErrInternalError = errors.New("InternalError")
+var ErrInvalidArgument = errors.New("InvalidArgument")
 var ErrAborted = errors.New("Aborted")
 var ErrContextCanceled = errors.New("ContextCanceled")
 

@@ -18,10 +18,11 @@ var (
 )
 
 type AppConfig struct {
-	Name          string `yaml:"name" validate:"required"`
-	NumRequests   int    `yaml:"numRequests" validate:"required"`
-	JobTimeoutSec int    `yaml:"jobTimeoutSec"`
-	JobSec        int    `yaml:"jobSec"`
+	Name              string `yaml:"name" validate:"required"`
+	NumRequests       int    `yaml:"numRequests" validate:"required"`
+	ConnectTimeoutSec int    `yaml:"connectTimeoutSec"`
+	JobTimeoutSec     int    `yaml:"jobTimeoutSec"`
+	JobSec            int    `yaml:"jobSec"`
 }
 
 type Config struct {

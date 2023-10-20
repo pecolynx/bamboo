@@ -2,6 +2,7 @@
 app:
   name: calc-app
   numRequests: 2
+  connectTimeoutSec: 2
   jobTimeoutSec: 7
   jobSec: 1
 workers:

@@ -33,8 +33,8 @@ func (p *redisRedisBambooResultPublisher) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (p *redisRedisBambooResultPublisher) Publish(ctx context.Context, resultChannel string, result []byte) error {
-	resp := pb.WorkerResponse{Type: pb.ResponseType_DATA, Data: result}
+func (p *redisRedisBambooResultPublisher) Publish(ctx context.Context, resultChannel string, responseType pb.ResponseType, data []byte) error {
+	resp := pb.WorkerResponse{Type: responseType, Data: data}
 	respBytes, err := proto.Marshal(&resp)
 	if err != nil {
 		return internal.Errorf("proto.Marshal. err: %w", err)
