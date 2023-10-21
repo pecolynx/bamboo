@@ -19,6 +19,14 @@ import (
 
 var appNameContextKey bamboo.ContextKey
 
+type job struct {
+	fn func(ctx context.Context) error
+}
+
+func (j *job) Run(ctx context.Context) error {
+	return j.fn(ctx)
+}
+
 func toParam(v int) []byte {
 	data, err := proto.Marshal(&WorkflowAppParameter{Value: int32(v)})
 	if err != nil {
@@ -35,21 +43,28 @@ func fromResp(data []byte) int {
 	return int(resp.Value)
 }
 func main2() {
-	ch := make(chan struct{})
-	close(ch)
-	select {
-	case <-ch:
-		fmt.Println("CLOSED")
-	default:
-		fmt.Println("DEFAULT")
+	ctx := context.Background()
+	dispatcher := NewDispatcher()
+	dispatcher.Run(ctx, 20)
+	wg := sync.WaitGroup{}
+
+	start := time.Now()
+	wg.Add(100)
+	for i := 0; i < 100; i++ {
+		job := job{
+			fn: func(ctx context.Context) error {
+				time.Sleep(time.Second)
+				wg.Done()
+				return nil
+			},
+		}
+		dispatcher.Add(ctx, &job)
 	}
-	select {
-	case <-ch:
-		fmt.Println("CLOSED")
-	default:
-		fmt.Println("DEFAULT")
-	}
+	wg.Wait()
+	end := time.Now()
+	fmt.Printf("done, %f\n", end.Sub(start).Seconds())
 }
+
 func main() {
 	ctx := context.Background()
 	bamboo.InitLogger(ctx)
@@ -78,6 +93,8 @@ func main() {
 		})
 		eg.Go(func() error {
 			return baseWorker(ctx, factory, "worker_b", "worker_b", func(ctx context.Context, headers map[string]string, data []byte, aborted <-chan interface{}) ([]byte, error) {
+				time.Sleep(time.Second)
+
 				param := WorkflowAppParameter{}
 				if err := proto.Unmarshal(data, &param); err != nil {
 					return nil, err
@@ -88,6 +105,8 @@ func main() {
 		})
 		eg.Go(func() error {
 			return baseWorker(ctx, factory, "worker_c", "worker_c", func(ctx context.Context, headers map[string]string, data []byte, aborted <-chan interface{}) ([]byte, error) {
+				time.Sleep(time.Second)
+
 				if 0 == r.Intn(1000) {
 					return nil, errors.New("RANDOM ERROR")
 				}
@@ -128,7 +147,7 @@ func baseWorker(ctx context.Context, factory helper.BambooFactory, workerName st
 				Password: "",
 			},
 		},
-		NumWorkers: 1,
+		NumWorkers: 20,
 	}, fn)
 	if err != nil {
 		return err
@@ -208,15 +227,7 @@ func workerClient0(ctx context.Context, factory helper.BambooFactory) {
 	wg.Wait()
 }
 
-type job struct {
-	fn func(ctx context.Context) error
-}
-
-func (j *job) Run(ctx context.Context) error {
-	return j.fn(ctx)
-}
-
-func workerClient(ctx context.Context, factory helper.BambooFactory) {
+func workerClient3(ctx context.Context, factory helper.BambooFactory) {
 	workerClientA, err := baseWorkerClient(ctx, "worker_a", "worker_a", factory)
 	if err != nil {
 		panic(err)
@@ -313,14 +324,114 @@ func workerClient(ctx context.Context, factory helper.BambooFactory) {
 	wg.Wait()
 
 	<-quit
+}
 
-	// fmt.Println(sum)
+func workerClient(ctx context.Context, factory helper.BambooFactory) {
+	workerClientA, err := baseWorkerClient(ctx, "worker_a", "worker_a", factory)
+	if err != nil {
+		panic(err)
+	}
+	defer workerClientA.Close(ctx)
+	workerClientB, err := baseWorkerClient(ctx, "worker_b", "worker_b", factory)
+	if err != nil {
+		panic(err)
+	}
+	defer workerClientB.Close(ctx)
+	workerClientC, err := baseWorkerClient(ctx, "worker_c", "worker_c", factory)
+	if err != nil {
+		panic(err)
+	}
+	defer workerClientC.Close(ctx)
 
-	// answer := (1+input*2)*(input*2*3)/2 + (input * 20)
-	// fmt.Printf("sum: %d, answer: %d\n", sum, answer)
-	// if sum != answer {
-	// 	panic(fmt.Errorf("sum: %d, answer: %d", sum, answer))
-	// }
+	dispatcher := NewDispatcher()
+	dispatcher.Run(ctx, 10)
+
+	fmt.Println("Started")
+
+	headersA := map[string]string{
+		bamboo.RequestIDKey: uuid.New().String(),
+	}
+	heartbeatIntervalMSec := 0
+	connectTimeoutMSec := 0
+	jobTimeoutMSec := 10000
+
+	input := 10
+
+	// x * 2
+	respBytesA, err := workerClientA.Call(ctx, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec, headersA, toParam(input))
+	if err != nil {
+		panic(err)
+	}
+	respA := fromResp(respBytesA)
+
+	// x * 3
+	wg := sync.WaitGroup{}
+	chC := make(chan int)
+	quit := make(chan struct{})
+	go func() {
+		sum := 0
+		for i := 0; i < respA; i++ {
+			c := <-chC
+			sum += int(c)
+		}
+
+		answer := (1+input*2)*(input*2*3)/2 + (input * 20)
+		fmt.Printf("sum: %d, answer: %d\n", sum, answer)
+		if sum != answer {
+			panic(fmt.Errorf("sum: %d, answer: %d", sum, answer))
+		}
+		quit <- struct{}{}
+	}()
+
+	start := time.Now()
+
+	fmt.Printf("respA: %d\n", respA)
+
+	for i := 0; i < respA; i++ {
+		fmt.Printf("%d, %v\n", i, time.Now())
+		wg.Add(1)
+		x := i + 1
+		go func(x int) {
+			fn := func(ctx context.Context) error {
+				func(i int) {
+					headersB := map[string]string{
+						bamboo.RequestIDKey: "B" + uuid.New().String(),
+					}
+					backOff1 := backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 20), ctx)
+					respBytesB, err := workerClientB.CallWithRetry(ctx, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec, headersB, backOff1, toParam(i))
+					if err != nil {
+						panic(err)
+					}
+					// respB := fromResp(respBytesB)
+					// fmt.Printf("RespB: %d\n", respB)
+
+					headersC := map[string]string{
+						bamboo.RequestIDKey: "C" + uuid.New().String(),
+					}
+					backOff2 := backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 20), ctx)
+
+					respBytesC, err := workerClientC.CallWithRetry(ctx, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec, headersC, backOff2, respBytesB)
+					if err != nil {
+						panic(err)
+					}
+					respC := fromResp(respBytesC)
+					// fmt.Printf("RespC: %d\n", respC)
+
+					chC <- respC
+					wg.Done()
+				}(x)
+				return nil
+			}
+			job := job{fn: fn}
+			dispatcher.Add(ctx, &job)
+		}(x)
+	}
+
+	wg.Wait()
+
+	end := time.Now()
+	fmt.Println(end.Sub(start).Seconds())
+	<-quit
 }
 
 func workerClient2(ctx context.Context, factory helper.BambooFactory) {

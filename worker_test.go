@@ -85,7 +85,6 @@ var (
 		}
 		return ctx
 	}
-
 	workerFunc = func(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
 		logger := bamboo.GetLoggerFromContext(ctx, testAppNameContextKey)
 		ctx = bamboo.WithLoggerName(ctx, testAppNameContextKey)
@@ -133,7 +132,8 @@ func Test_WorkerClient_Call(t *testing.T) {
 		emptyHeartbeatPublisher bool
 	}
 	type outputs struct {
-		callError error
+		callError    error
+		callErrorStr string
 	}
 	tests := []struct {
 		name    string
@@ -207,7 +207,7 @@ func Test_WorkerClient_Call(t *testing.T) {
 				failJob:               true,
 			},
 			outputs: outputs{
-				callError: bamboo.ErrInternalError,
+				callErrorStr: "FAIL",
 			},
 		},
 	}
@@ -251,6 +251,9 @@ func Test_WorkerClient_Call(t *testing.T) {
 			if tt.outputs.callError != nil {
 				logger.ErrorContext(ctx, fmt.Sprintf("%+v", err))
 				assert.ErrorIs(t, err, tt.outputs.callError)
+				return
+			} else if tt.inputs.failJob {
+				assert.Equal(t, "FAIL", err.Error())
 				return
 			}
 

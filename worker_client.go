@@ -86,7 +86,7 @@ func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec, co
 			case <-timedout:
 				return
 			default:
-				fmt.Printf("SEND: %v, %v\n", headers, time.Now())
+				// fmt.Printf("SEND: %v, %v\n", headers, time.Now())
 				ch <- result
 			}
 		}
