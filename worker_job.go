@@ -49,14 +49,12 @@ func NewWorkerJob(ctx context.Context, carrier propagation.MapCarrier, workerFun
 
 func (j *workerJob) Run(ctx context.Context) error {
 	logger := GetLoggerFromContext(ctx, BambooWorkerJobLoggerContextKey)
-	ctx = WithLoggerName(ctx, BambooWorkerLoggerContextKey)
+	ctx = WithLoggerName(ctx, BambooWorkerJobLoggerContextKey)
 	defer close(j.done)
 	start := time.Now()
 
 	j.metricsEventHandler.OnIncrNumRunningWorkers()
 	defer j.metricsEventHandler.OnDecrNumRunningWorkers()
-
-	logger.DebugContext(ctx, fmt.Sprintf("start job. resultChannel: %s", j.resultChannel))
 
 	propagator := otel.GetTextMapPropagator()
 	ctx = propagator.Extract(ctx, j.carrier)
@@ -66,6 +64,8 @@ func (j *workerJob) Run(ctx context.Context) error {
 		attrs = append(attrs, attribute.KeyValue{Key: attribute.Key(k), Value: attribute.StringValue(v)})
 	}
 	ctx = j.logConfigFunc(ctx, j.headers)
+
+	logger.DebugContext(ctx, fmt.Sprintf("start job. resultChannel: %s", j.resultChannel))
 
 	opts := []trace.SpanStartOption{
 		trace.WithAttributes(attrs...),
