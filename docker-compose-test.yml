@@ -3,7 +3,7 @@ version: '3'
 services:
   test-kafka:
     image: confluentinc/cp-kafka
-    container_name: bamboo-kafka
+    container_name: test-bamboo-kafka
     environment:
       KAFKA_ZOOKEEPER_CONNECT: test-zookeeper:32182
       KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29093,INTERNAL://:9092
@@ -14,14 +14,14 @@ services:
     ports:
       - 29093:29092
     depends_on:
-      - dev-zookeeper
+      - test-zookeeper
   test-zookeeper:
     image: confluentinc/cp-zookeeper
-    container_name: bamboo-zookeeper
+    container_name: test-bamboo-zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 32182
   test-redis:
     image: "redis:7.0"
-    container_name: bamboo-redis
+    container_name: test-bamboo-redis
     ports:
       - "6380:6379"

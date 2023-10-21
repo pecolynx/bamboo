@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	"go.opentelemetry.io/otel"
-
+	"github.com/google/uuid"
 	"github.com/pecolynx/bamboo"
 	"github.com/pecolynx/bamboo/helper"
 )
 
-var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/helloworld-app")
 var appNameContextKey bamboo.ContextKey
 var channel = "helloworld-app"
 
@@ -87,7 +85,9 @@ func workerClient(ctx context.Context, factory helper.BambooFactory) {
 
 	fmt.Println("Started")
 
-	headers := map[string]string{}
+	headers := map[string]string{
+		bamboo.RequestIDKey: uuid.New().String(),
+	}
 	heartbeatIntervalMSec := 0
 	connectTimeoutMSec := 0
 	jobTimeoutMSec := 1000
