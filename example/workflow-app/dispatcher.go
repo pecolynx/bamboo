@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 )
 
 type Dispatcher interface {
@@ -38,7 +37,6 @@ func (d *dispatcher) Run(ctx context.Context, numWorkers int) error {
 				}
 				return
 			case job := <-d.jobQueue:
-				fmt.Println("Job received")
 				worker := <-d.workerPool // wait for available channel
 				worker <- job            // dispatch work to worker
 			}

@@ -33,6 +33,8 @@ func NewRedisBambooHeartbeatPublisher(publisherOptions *redis.UniversalOptions) 
 }
 
 func (p *redisBambooHeartbeatPublisher) Ping(ctx context.Context) error {
+	ctx = WithLoggerName(ctx, BambooHeartbeatPublisherLoggerContextKey)
+
 	publisher := redis.NewUniversalClient(p.publisherOptions)
 	defer publisher.Close()
 	if _, err := publisher.Ping(ctx).Result(); err != nil {

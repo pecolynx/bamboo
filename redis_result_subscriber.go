@@ -25,6 +25,8 @@ func NewRedisBambooResultSubscriber(ctx context.Context, workerName string, subs
 }
 
 func (s *redisBambooResultSubscriber) Ping(ctx context.Context) error {
+	ctx = WithLoggerName(ctx, BambooResultSubscriberLoggerContextKey)
+
 	if _, err := s.subscriber.Ping(ctx).Result(); err != nil {
 		return err
 	}
@@ -33,6 +35,8 @@ func (s *redisBambooResultSubscriber) Ping(ctx context.Context) error {
 }
 
 func (s *redisBambooResultSubscriber) OpenSubscribeConnection(ctx context.Context, resultChannel string) (SubscribeFunc, CloseSubscribeConnectionFunc, error) {
+	ctx = WithLoggerName(ctx, BambooResultSubscriberLoggerContextKey)
+
 	pubsub := s.subscriber.Subscribe(ctx, resultChannel)
 
 	subscribeFunc := func(ctx context.Context) (*pb.WorkerResponse, error) {

@@ -34,6 +34,8 @@ func (p *redisRedisBambooResultPublisher) Ping(ctx context.Context) error {
 }
 
 func (p *redisRedisBambooResultPublisher) Publish(ctx context.Context, resultChannel string, responseType pb.ResponseType, data []byte) error {
+	ctx = WithLoggerName(ctx, BambooResultPublisherLoggerContextKey)
+
 	resp := pb.WorkerResponse{Type: responseType, Data: data}
 	respBytes, err := proto.Marshal(&resp)
 	if err != nil {

@@ -46,18 +46,17 @@ func (c *bambooWorkerClient) Close(ctx context.Context) {
 func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec int, headers map[string]string, param []byte) ([]byte, error) {
 	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
 	ctx = WithLoggerName(ctx, BambooWorkerClientLoggerContextKey)
-	// DEBUG
-	ctx1 := c.logConfigFunc(ctx, headers)
+	ctx = c.logConfigFunc(ctx, headers)
 
-	ctx, cancel := context.WithTimeout(ctx1, time.Duration(jobTimeoutMSec+1000)*time.Millisecond)
+	logger.DebugContext(ctx, "Call")
+
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(jobTimeoutMSec+1000)*time.Millisecond)
 	defer cancel()
 
 	resultChannel, err := c.newResultChannelString()
 	if err != nil {
 		return nil, err
 	}
-
-	logger.DebugContext(ctx, "Call")
 
 	timedout := c.startTimer(ctx, time.Duration(jobTimeoutMSec)*time.Millisecond)
 
@@ -77,23 +76,17 @@ func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec, co
 	go func(ctx context.Context) {
 		sendResult := func(result *ByteArreayResult) {
 			select {
-			// case <-done:
-			// 	fmt.Printf("SKIP2: %v, %v\n", headers, time.Now())
-			// 	return
 			case <-ctx.Done():
-				fmt.Printf("SKIP3: %v, %v\n", headers, time.Now())
 				return
 			case <-timedout:
 				return
 			default:
-				// fmt.Printf("SEND: %v, %v\n", headers, time.Now())
 				ch <- result
 			}
 		}
 
 		resultBytes, err := c.subscribe(ctx, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec, subscribeFunc, closeSubscribeConnection)
 		if err != nil {
-			fmt.Printf("ERRRRRRRRRRR: %v, %v, %v\n", err, headers, time.Now())
 			sendResult(&ByteArreayResult{Value: nil, Error: err})
 			return
 		}
@@ -126,11 +119,11 @@ func (c *bambooWorkerClient) CallWithRetry(ctx context.Context, heartbeatInterva
 	ctx = WithLoggerName(ctx, BambooWorkerClientLoggerContextKey)
 	ctx = c.logConfigFunc(ctx, headers)
 
-	headers["count"] = "a"
+	numAttempt := 0
 
 	var respBytes []byte
 	operation := func() error {
-		headers["count"] += "a"
+		numAttempt += 1
 		ctxCopy := context.WithoutCancel(ctx)
 		respBytesTmp, err := c.Call(ctxCopy, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec, headers, param)
 		if err != nil {
@@ -141,7 +134,7 @@ func (c *bambooWorkerClient) CallWithRetry(ctx context.Context, heartbeatInterva
 	}
 
 	notify := func(err error, d time.Duration) {
-		logger.WarnContext(ctx, "failed to Call", slog.Any("err", err))
+		logger.WarnContext(ctx, "failed to Call", slog.Any("err", err), slog.Int("num_attempt", numAttempt))
 	}
 
 	if err := backoff.RetryNotify(operation, backOff, notify); err != nil {

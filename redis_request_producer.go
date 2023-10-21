@@ -28,27 +28,7 @@ func NewRedisBambooRequestProducer(ctx context.Context, workerName string, produ
 }
 
 func (p *redisBambooRequestProducer) Produce(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, jobTimeoutMSec int, headers map[string]string, data []byte) error {
-	ctx = WithLoggerName(ctx, BambooWorkerClientLoggerContextKey)
-	// carrier := propagation.MapCarrier{}
-
-	// spanCtx, span := tracer.Start(ctx, p.workerName)
-	// defer span.End()
-
-	// p.propagator.Inject(spanCtx, carrier)
-
-	// req := pb.WorkerParameter{
-	// 	Carrier:               carrier,
-	// 	Headers:               headers,
-	// 	ResultChannel:         resultChannel,
-	// 	HeartbeatIntervalMSec: int32(heartbeatIntervalMSec),
-	// 	JobTimeoutMSec:        int32(jobTimeoutMSec),
-	// 	Data:                  data,
-	// }
-
-	// reqBytes, err := proto.Marshal(&req)
-	// if err != nil {
-	// 	return internal.Errorf("proto.Marshal. err: %w", err)
-	// }
+	ctx = WithLoggerName(ctx, BambooRequestProducerLoggerContextKey)
 
 	baseBambooRequestProducer := baseBambooRequestProducer{}
 	return baseBambooRequestProducer.Produce(ctx, resultChannel, heartbeatIntervalMSec, jobTimeoutMSec, headers, data, p.workerName, p.propagator, func(ctx context.Context, reqBytes []byte) error {
@@ -62,19 +42,11 @@ func (p *redisBambooRequestProducer) Produce(ctx context.Context, resultChannel 
 		}
 		return nil
 	})
-	// reqStr := base64.StdEncoding.EncodeToString(reqBytes)
-
-	// producer := redis.NewUniversalClient(&p.producerOptions)
-	// defer producer.Close()
-
-	// if _, err := producer.LPush(ctx, p.producerChannel, reqStr).Result(); err != nil {
-	// 	return internal.Errorf("producer.LPush. err: %w", err)
-	// }
-
-	// return nil
 }
 
 func (p *redisBambooRequestProducer) Ping(ctx context.Context) error {
+	ctx = WithLoggerName(ctx, BambooRequestProducerLoggerContextKey)
+
 	producer := redis.NewUniversalClient(&p.producerOptions)
 	defer producer.Close()
 
