@@ -2,7 +2,6 @@ package bamboo
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -28,11 +27,10 @@ func (p *goroutineRedisBambooResultPublisher) Ping(ctx context.Context) error {
 }
 
 func (p *goroutineRedisBambooResultPublisher) Publish(ctx context.Context, resultChannel string, responseType pb.ResponseType, data []byte) error {
+	ctx = WithLoggerName(ctx, BambooResultPublisherLoggerContextKey)
+
 	// debug delay
-	logger := GetLoggerFromContext(ctx, BambooResultPublisherLoggerContextKey)
-	logger.DebugContext(ctx, fmt.Sprintf("SLEEP START, %d", p.debugPublishDelay))
 	time.Sleep(p.debugPublishDelay)
-	logger.DebugContext(ctx, "SLEEP END")
 
 	resp := pb.WorkerResponse{Type: responseType, Data: data}
 	respBytes, err := proto.Marshal(&resp)

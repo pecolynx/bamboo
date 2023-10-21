@@ -34,11 +34,13 @@ func NewRedisBambooRequestConsumer(consumerOptions *redis.UniversalOptions, cons
 
 func (c *redisBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerParameter, error) {
 	logger := GetLoggerFromContext(ctx, BambooRequestConsumerLoggerContextKey)
+	ctx = WithLoggerName(ctx, BambooRequestConsumerLoggerContextKey)
+	logger.DebugContext(ctx, "start consuming loop")
 
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ErrContextCanceled
+			return nil, internal.Errorf("ctx.Done(). stop consuming loop. err: %w", ErrContextCanceled)
 		default:
 			m, err := c.consumer.BRPop(ctx, c.requestWaitTimeout, c.consumerChannel).Result()
 			if errors.Is(err, redis.Nil) {
@@ -47,28 +49,43 @@ func (c *redisBambooRequestConsumer) Consume(ctx context.Context) (*pb.WorkerPar
 				return nil, internal.Errorf("consumer.BRPop. err: %w", err)
 			}
 
-			if len(m) == 1 {
-				return nil, internal.Errorf("received invalid data. m[0]: %s, err: %w", m[0], err)
-			} else if len(m) != redisBrpopValidLength {
-				return nil, internal.Errorf("received invalid data. err: %w", err)
-			}
-
-			reqStr := m[1]
-			reqBytes, err := base64.StdEncoding.DecodeString(reqStr)
+			req, err := c.convertRedisStringSliceToWorkerParameter(ctx, m)
 			if err != nil {
-				logger.WarnContext(ctx, "invalid parameter. failed to base64.StdEncoding.DecodeString.", slog.Any("err", err))
-				continue
+				if errors.Is(err, ErrInvalidArgument) {
+					continue
+				} else {
+					return nil, err
+				}
 			}
 
-			req := pb.WorkerParameter{}
-			if err := proto.Unmarshal(reqBytes, &req); err != nil {
-				logger.WarnContext(ctx, "invalid parameter. failed to proto.Unmarshal.", slog.Any("err", err))
-				continue
-			}
-
-			return &req, nil
+			return req, nil
 		}
 	}
+}
+
+func (c *redisBambooRequestConsumer) convertRedisStringSliceToWorkerParameter(ctx context.Context, m []string) (*pb.WorkerParameter, error) {
+	logger := GetLoggerFromContext(ctx, BambooRequestConsumerLoggerContextKey)
+
+	if len(m) == 1 {
+		return nil, internal.Errorf("received invalid data. m[0]: %s, err: %w", m[0], ErrInternalError)
+	} else if len(m) != redisBrpopValidLength {
+		return nil, internal.Errorf("received invalid data. err: %w", ErrInternalError)
+	}
+
+	reqStr := m[1]
+	reqBytes, err := base64.StdEncoding.DecodeString(reqStr)
+	if err != nil {
+		logger.WarnContext(ctx, "invalid parameter. failed to base64.StdEncoding.DecodeString.", slog.Any("err", err))
+		return nil, ErrInvalidArgument
+	}
+
+	req := pb.WorkerParameter{}
+	if err := proto.Unmarshal(reqBytes, &req); err != nil {
+		logger.WarnContext(ctx, "invalid parameter. failed to proto.Unmarshal.", slog.Any("err", err))
+		return nil, ErrInvalidArgument
+	}
+
+	return &req, nil
 }
 
 func (c *redisBambooRequestConsumer) Ping(ctx context.Context) error {

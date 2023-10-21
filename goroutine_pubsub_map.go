@@ -1,7 +1,6 @@
 package bamboo
 
 import (
-	"errors"
 	"fmt"
 )
 
@@ -60,13 +59,14 @@ func (m *goroutineBambooPubSubMap) ClosePublishChannel(channelName string) error
 	if _, ok := m.closePubMap[channelName]; !ok {
 		return fmt.Errorf("closepub channel not found. name: %s", channelName)
 	}
-	m.closePubMap[channelName] <- struct{}{}
+	closeSub := m.closePubMap[channelName]
+	closeSub <- struct{}{}
 	return nil
 }
 
 func (m *goroutineBambooPubSubMap) CloseSubscribeChannel(channelName string) error {
 	if _, ok := m.closeSubMap[channelName]; !ok {
-		return errors.New("NotFound")
+		return fmt.Errorf("closesub channel not found. name: %s", channelName)
 	}
 	closeSub := m.closeSubMap[channelName]
 	closeSub <- struct{}{}
