@@ -8,6 +8,7 @@ message WorkerTestParameter {
   int32 x = 1;
   int32 y = 2;
   int32 waitMSec = 3;
+  bool  fail = 4;
 }
 
 message WorkerTestResponse {

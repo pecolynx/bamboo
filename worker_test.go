@@ -2,6 +2,7 @@ package bamboo_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -94,6 +95,10 @@ var (
 			return nil, internal.Errorf("proto.Unmarshal. err: %w", err)
 		}
 
+		if req.Fail {
+			return nil, errors.New("FAIL")
+		}
+
 		time.Sleep(time.Duration(req.WaitMSec) * time.Millisecond)
 
 		answer := req.X * req.Y
@@ -124,6 +129,7 @@ func Test_WorkerClient_Call(t *testing.T) {
 		connectTimeoutMSec      int
 		jobTimeoutMSec          int
 		waitMSec                int
+		failJob                 bool
 		emptyHeartbeatPublisher bool
 	}
 	type outputs struct {
@@ -192,6 +198,18 @@ func Test_WorkerClient_Call(t *testing.T) {
 				callError: bamboo.ErrAborted,
 			},
 		},
+		{
+			name: "Failure",
+			inputs: inputs{
+				heartbeatIntervalMSec: 200,
+				jobTimeoutMSec:        800,
+				waitMSec:              400,
+				failJob:               true,
+			},
+			outputs: outputs{
+				callError: bamboo.ErrInternalError,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -209,7 +227,7 @@ func Test_WorkerClient_Call(t *testing.T) {
 
 			requestProducer := bamboo.NewGoroutineBambooRequestProducer(ctx, "WORKER-NAME", queue)
 			resultSubscriber := bamboo.NewGoroutineBambooResultSubscriber(ctx, "WORKER-NAME", pubsubMap)
-			workerClient := bamboo.NewBambooWorkerClient(requestProducer, resultSubscriber)
+			workerClient := bamboo.NewBambooWorkerClient(requestProducer, resultSubscriber, logConfigFunc)
 			worker, err := bamboo.NewBambooWorker(createBambooRequestConsumerFunc, resultPublisher, heartbeatPublisher, workerFunc, 1, logConfigFunc, emptyEventHandler)
 			require.Nil(t, err)
 
@@ -220,7 +238,12 @@ func Test_WorkerClient_Call(t *testing.T) {
 				assert.NoError(t, err)
 			}()
 
-			req := pb_test.WorkerTestParameter{X: 3, Y: 5, WaitMSec: int32(tt.inputs.waitMSec)}
+			req := pb_test.WorkerTestParameter{
+				X:        3,
+				Y:        5,
+				WaitMSec: int32(tt.inputs.waitMSec),
+				Fail:     tt.inputs.failJob,
+			}
 			reqBytes, err := proto.Marshal(&req)
 			require.Nil(t, err)
 

@@ -44,26 +44,26 @@ type prometheusEventHandler struct {
 	numRunningWorkersGauge    prometheus.Gauge
 }
 
-func NewPrometheusEventHandler() MetricsEventHandler {
+func NewPrometheusEventHandler(workerName string) MetricsEventHandler {
 	receiveRequestCounter := prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "bamboo_requests_received",
+			Name: "bamboo_requests_received_" + workerName,
 		})
 	successJobCounter := prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "bamboo_jobs_success",
+			Name: "bamboo_jobs_success_" + workerName,
 		})
 	internalErrorJobCounter := prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "bamboo_jobs_internal_error",
+			Name: "bamboo_jobs_internal_error_" + workerName,
 		})
 	invalidArgumentJobCounter := prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "bamboo_jobs_invalid_argument",
+			Name: "bamboo_jobs_invalid_argument_" + workerName,
 		})
 	numRunningWorkersGauge := prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "bamboo_num_running_workers",
+			Name: "bamboo_num_running_workers_" + workerName,
 		})
 
 	if err := prometheus.Register(receiveRequestCounter); err != nil {

@@ -23,6 +23,7 @@ import (
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/goroutine-app")
 var appNameContextKey bamboo.ContextKey
+var workerName = "worker-goroutine"
 
 type expr struct {
 	workerClients map[string]bamboo.BambooWorkerClient
@@ -59,21 +60,21 @@ func (e *expr) workerGoroutine(ctx context.Context, x, y int) int {
 		return 0
 	}
 
-	workerClient, ok := e.workerClients["worker-goroutine"]
+	workerClient, ok := e.workerClients[workerName]
 	if !ok {
-		e.setError(fmt.Errorf("worker client not found. name: %s", "worker-goroutine"))
+		e.setError(fmt.Errorf("worker client not found. name: %s", workerName))
 		return 0
 	}
 
 	respBytes, err := workerClient.Call(ctx, 0, 0, 0, headers, paramBytes)
 	if err != nil {
-		e.setError(internal.Errorf("app.Call(worker-goroutine). err: %w", err))
+		e.setError(internal.Errorf("app.Call(%s). err: %w", workerName, err))
 		return 0
 	}
 
 	resp := GoroutineAppResponse{}
 	if err := proto.Unmarshal(respBytes, &resp); err != nil {
-		e.setError(internal.Errorf("proto.Unmarshal. worker-goroutine response is invalid. err: %w", err))
+		e.setError(internal.Errorf("proto.Unmarshal. %s response is invalid. err: %w", workerName, err))
 		return 0
 	}
 
@@ -100,7 +101,7 @@ func main() {
 	ctx = bamboo.WithLoggerName(ctx, appNameContextKey)
 
 	factory := helper.NewBambooFactory()
-	worker, err := factory.CreateBambooWorker(cfg.Worker, workerFunc)
+	worker, err := factory.CreateBambooWorker(workerName, cfg.Worker, workerFunc)
 	if err != nil {
 		panic(err)
 	}

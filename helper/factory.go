@@ -13,7 +13,7 @@ import (
 
 type BambooFactory interface {
 	CreateBambooWorkerClient(ctx context.Context, workerName string, cfg *WorkerClientConfig) (bamboo.BambooWorkerClient, error)
-	CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.WorkerFunc) (bamboo.BambooWorker, error)
+	CreateBambooWorker(workerName string, cfg *WorkerConfig, workerFunc bamboo.WorkerFunc) (bamboo.BambooWorker, error)
 }
 
 type bambooFactory struct {
@@ -63,10 +63,10 @@ func (f *bambooFactory) CreateBambooWorkerClient(ctx context.Context, workerName
 		return nil, internal.Errorf("invalid type of request producer: %s", cfg.RequestProducer.Type)
 	}
 
-	return bamboo.NewBambooWorkerClient(rp, rs), nil
+	return bamboo.NewBambooWorkerClient(rp, rs, LogConfigFunc), nil
 }
 
-func (f *bambooFactory) CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.WorkerFunc) (bamboo.BambooWorker, error) {
+func (f *bambooFactory) CreateBambooWorker(workerName string, cfg *WorkerConfig, workerFunc bamboo.WorkerFunc) (bamboo.BambooWorker, error) {
 	var resultPublisher bamboo.BambooResultPublisher
 	var heartbeatPublisher bamboo.BambooHeartbeatPublisher
 	var metricsEventHandler bamboo.MetricsEventHandler
@@ -119,6 +119,6 @@ func (f *bambooFactory) CreateBambooWorker(cfg *WorkerConfig, workerFunc bamboo.
 		return nil, fmt.Errorf("invalid consumer type: %s", cfg.Consumer.Type)
 	}
 
-	metricsEventHandler = bamboo.NewPrometheusEventHandler()
+	metricsEventHandler = bamboo.NewPrometheusEventHandler(workerName)
 	return bamboo.NewBambooWorker(createBambooRequestConsumerFunc, resultPublisher, heartbeatPublisher, workerFunc, cfg.NumWorkers, LogConfigFunc, metricsEventHandler)
 }

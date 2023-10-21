@@ -22,6 +22,7 @@ import (
 
 var tracer = otel.Tracer("github.com/pecolynx/bamboo/example/worker-redis-redis")
 var appNameContextKey bamboo.ContextKey
+var workerName = "worker-redis-redis"
 
 func getValue(values ...string) string {
 	for _, v := range values {
@@ -48,7 +49,7 @@ func main() {
 	ctx = bamboo.WithValue(ctx, bamboo.LoggerNameContextKey, cfg.App.Name)
 
 	factory := helper.NewBambooFactory()
-	worker, err := factory.CreateBambooWorker(cfg.Worker, workerFunc)
+	worker, err := factory.CreateBambooWorker(workerName, cfg.Worker, workerFunc)
 	if err != nil {
 		panic(err)
 	}

@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+option go_package = "github.com/pecolynx/bamboo/example/workflow-app/main";
+
+package proto;
+
+message WorkflowAppParameter {
+  int32   value = 1;
+}
+
+message WorkflowAppResponse {
+  int32   value = 1;
+}
