@@ -2,6 +2,7 @@ package bamboo_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -84,7 +85,6 @@ var (
 		}
 		return ctx
 	}
-
 	workerFunc = func(ctx context.Context, headers map[string]string, reqBytes []byte, aborted <-chan interface{}) ([]byte, error) {
 		logger := bamboo.GetLoggerFromContext(ctx, testAppNameContextKey)
 		ctx = bamboo.WithLoggerName(ctx, testAppNameContextKey)
@@ -92,6 +92,10 @@ var (
 		req := pb_test.WorkerTestParameter{}
 		if err := proto.Unmarshal(reqBytes, &req); err != nil {
 			return nil, internal.Errorf("proto.Unmarshal. err: %w", err)
+		}
+
+		if req.Fail {
+			return nil, errors.New("FAIL")
 		}
 
 		time.Sleep(time.Duration(req.WaitMSec) * time.Millisecond)
@@ -124,10 +128,12 @@ func Test_WorkerClient_Call(t *testing.T) {
 		connectTimeoutMSec      int
 		jobTimeoutMSec          int
 		waitMSec                int
+		failJob                 bool
 		emptyHeartbeatPublisher bool
 	}
 	type outputs struct {
-		callError error
+		callError    error
+		callErrorStr string
 	}
 	tests := []struct {
 		name    string
@@ -192,6 +198,18 @@ func Test_WorkerClient_Call(t *testing.T) {
 				callError: bamboo.ErrAborted,
 			},
 		},
+		{
+			name: "Failure",
+			inputs: inputs{
+				heartbeatIntervalMSec: 200,
+				jobTimeoutMSec:        800,
+				waitMSec:              400,
+				failJob:               true,
+			},
+			outputs: outputs{
+				callErrorStr: "FAIL",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -209,7 +227,7 @@ func Test_WorkerClient_Call(t *testing.T) {
 
 			requestProducer := bamboo.NewGoroutineBambooRequestProducer(ctx, "WORKER-NAME", queue)
 			resultSubscriber := bamboo.NewGoroutineBambooResultSubscriber(ctx, "WORKER-NAME", pubsubMap)
-			workerClient := bamboo.NewBambooWorkerClient(requestProducer, resultSubscriber)
+			workerClient := bamboo.NewBambooWorkerClient(requestProducer, resultSubscriber, logConfigFunc)
 			worker, err := bamboo.NewBambooWorker(createBambooRequestConsumerFunc, resultPublisher, heartbeatPublisher, workerFunc, 1, logConfigFunc, emptyEventHandler)
 			require.Nil(t, err)
 
@@ -220,7 +238,12 @@ func Test_WorkerClient_Call(t *testing.T) {
 				assert.NoError(t, err)
 			}()
 
-			req := pb_test.WorkerTestParameter{X: 3, Y: 5, WaitMSec: int32(tt.inputs.waitMSec)}
+			req := pb_test.WorkerTestParameter{
+				X:        3,
+				Y:        5,
+				WaitMSec: int32(tt.inputs.waitMSec),
+				Fail:     tt.inputs.failJob,
+			}
 			reqBytes, err := proto.Marshal(&req)
 			require.Nil(t, err)
 
@@ -228,6 +251,9 @@ func Test_WorkerClient_Call(t *testing.T) {
 			if tt.outputs.callError != nil {
 				logger.ErrorContext(ctx, fmt.Sprintf("%+v", err))
 				assert.ErrorIs(t, err, tt.outputs.callError)
+				return
+			} else if tt.inputs.failJob {
+				assert.Equal(t, "FAIL", err.Error())
 				return
 			}
 

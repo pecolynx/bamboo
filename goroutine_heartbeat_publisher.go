@@ -2,7 +2,6 @@ package bamboo
 
 import (
 	"context"
-	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -33,7 +32,6 @@ func (h *goroutineBambooHeartbeatPublisher) Ping(ctx context.Context) error {
 }
 
 func (h *goroutineBambooHeartbeatPublisher) Run(ctx context.Context, resultChannel string, heartbeatIntervalMSec int, done <-chan interface{}, aborted <-chan interface{}) error {
-	logger := GetLoggerFromContext(ctx, BambooHeartbeatPublisherLoggerContextKey)
 	ctx = WithLoggerName(ctx, BambooHeartbeatPublisherLoggerContextKey)
 
 	pubsub, err := h.pubsubMap.GetChannel(resultChannel)
@@ -41,37 +39,10 @@ func (h *goroutineBambooHeartbeatPublisher) Run(ctx context.Context, resultChann
 		return internal.Errorf("pubsubMap.GetChannel. resultChannel: %s, err: %w", resultChannel, err)
 	}
 
-	if heartbeatIntervalMSec == 0 {
-		logger.DebugContext(ctx, "heartbeat is disabled because heartbeatIntervalMSec is zero.")
-		return nil
-	}
-
-	heartbeatInterval := time.Duration(heartbeatIntervalMSec) * time.Millisecond
-	pulse := time.NewTicker(heartbeatInterval)
-
-	go func() {
-		defer func() {
-			logger.DebugContext(ctx, "stop heartbeat loop")
-			pulse.Stop()
-		}()
-
-		for {
-			select {
-			case <-ctx.Done():
-				logger.DebugContext(ctx, "ctx.Done(). stop heartbeat loop")
-				return
-			case <-done:
-				logger.DebugContext(ctx, "done. stop heartbeat loop")
-				return
-			case <-aborted:
-				logger.DebugContext(ctx, "aborted. stop heartbeat loop")
-				return
-			case <-pulse.C:
-				logger.DebugContext(ctx, "pulse")
-				pubsub <- h.heartbeatRespBytes
-			}
-		}
-	}()
+	baseHeartbeatPublisher := baseHeartbeatPublisher{}
+	baseHeartbeatPublisher.Run(ctx, heartbeatIntervalMSec, done, aborted, func() {
+		pubsub <- h.heartbeatRespBytes
+	})
 
 	return nil
 }

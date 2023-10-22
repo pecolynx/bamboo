@@ -28,19 +28,19 @@ func (s *goroutineBambooResultSubscriber) OpenSubscribeConnection(ctx context.Co
 	pubsub := s.pubsubMap.CreateChannel(resultChannel)
 
 	subscribeFunc := func(ctx context.Context) (*pb.WorkerResponse, error) {
-		for {
-			select {
-			case <-ctx.Done():
-				return nil, ErrContextCanceled
-			case respBytes := <-pubsub:
-				resp := pb.WorkerResponse{}
-				if err := proto.Unmarshal(respBytes, &resp); err != nil {
-					return nil, err
-				}
-
-				return &resp, nil
+		// for {
+		select {
+		case <-ctx.Done():
+			return nil, ErrContextCanceled
+		case respBytes := <-pubsub:
+			resp := pb.WorkerResponse{}
+			if err := proto.Unmarshal(respBytes, &resp); err != nil {
+				return nil, err
 			}
+
+			return &resp, nil
 		}
+		// }
 	}
 
 	closeSubscribeConnectionFunc := func(ctx context.Context) error {

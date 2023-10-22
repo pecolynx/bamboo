@@ -77,7 +77,7 @@ func (j *workerJob) Run(ctx context.Context) error {
 	result, err := j.workerFunc(ctx, j.headers, j.parameter, j.aborted)
 	if err != nil {
 		j.metricsEventHandler.OnInternalErrorJob()
-		if err := j.resultPublisher.Publish(ctx, j.resultChannel, pb.ResponseType_INTERNAL_ERROR, nil); err != nil {
+		if err := j.resultPublisher.Publish(ctx, j.resultChannel, pb.ResponseType_INTERNAL_ERROR, []byte(err.Error())); err != nil {
 			j.metricsEventHandler.OnInternalErrorJob()
 			return internal.Errorf("resultPublisher.Publish. err: %w", err)
 		}

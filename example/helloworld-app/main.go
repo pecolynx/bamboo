@@ -12,6 +12,7 @@ import (
 
 var appNameContextKey bamboo.ContextKey
 var channel = "helloworld-app"
+var workerName = "worker-helloworld"
 
 func main() {
 	ctx := context.Background()
@@ -30,7 +31,7 @@ func main() {
 }
 
 func worker(ctx context.Context, factory helper.BambooFactory) {
-	worker, err := factory.CreateBambooWorker(&helper.WorkerConfig{
+	worker, err := factory.CreateBambooWorker(workerName, &helper.WorkerConfig{
 		Consumer: &helper.ConsumerConfig{
 			Type: "redis",
 			Redis: &helper.RedisConsumerConfig{
@@ -61,7 +62,7 @@ func worker(ctx context.Context, factory helper.BambooFactory) {
 }
 
 func workerClient(ctx context.Context, factory helper.BambooFactory) {
-	workerClient, err := factory.CreateBambooWorkerClient(ctx, "worker-helloworld", &helper.WorkerClientConfig{
+	workerClient, err := factory.CreateBambooWorkerClient(ctx, workerName, &helper.WorkerClientConfig{
 		RequestProducer: &helper.RequestProducerConfig{
 			Type: "redis",
 			Redis: &helper.RedisRequestProducerConfig{

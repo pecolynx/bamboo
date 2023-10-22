@@ -26,6 +26,7 @@ func NewRedisBambooResultPublisher(publisherOptions *redis.UniversalOptions) Bam
 func (p *redisRedisBambooResultPublisher) Ping(ctx context.Context) error {
 	publisher := redis.NewUniversalClient(p.publisherOptions)
 	defer publisher.Close()
+
 	if _, err := publisher.Ping(ctx).Result(); err != nil {
 		return internal.Errorf("publisher.Ping. err: %w", err)
 	}
@@ -34,6 +35,8 @@ func (p *redisRedisBambooResultPublisher) Ping(ctx context.Context) error {
 }
 
 func (p *redisRedisBambooResultPublisher) Publish(ctx context.Context, resultChannel string, responseType pb.ResponseType, data []byte) error {
+	ctx = WithLoggerName(ctx, BambooResultPublisherLoggerContextKey)
+
 	resp := pb.WorkerResponse{Type: responseType, Data: data}
 	respBytes, err := proto.Marshal(&resp)
 	if err != nil {

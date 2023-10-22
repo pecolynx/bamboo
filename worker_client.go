@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
+
 	"github.com/pecolynx/bamboo/internal"
 	pb "github.com/pecolynx/bamboo/proto"
 )
@@ -16,17 +18,20 @@ type BambooWorkerClient interface {
 	Ping(ctx context.Context) error
 	Close(ctx context.Context)
 	Call(ctx context.Context, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec int, headers map[string]string, param []byte) ([]byte, error)
+	CallWithRetry(ctx context.Context, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec int, headers map[string]string, backOff backoff.BackOff, param []byte) ([]byte, error)
 }
 
 type bambooWorkerClient struct {
 	requestProducer  BambooRequestProducer
 	resultSubscriber BambooResultSubscriber
+	logConfigFunc    LogConfigFunc
 }
 
-func NewBambooWorkerClient(requestProducer BambooRequestProducer, resultSubscriber BambooResultSubscriber) BambooWorkerClient {
+func NewBambooWorkerClient(requestProducer BambooRequestProducer, resultSubscriber BambooResultSubscriber, logConfigFunc LogConfigFunc) BambooWorkerClient {
 	return &bambooWorkerClient{
 		requestProducer:  requestProducer,
 		resultSubscriber: resultSubscriber,
+		logConfigFunc:    logConfigFunc,
 	}
 }
 
@@ -41,10 +46,12 @@ func (c *bambooWorkerClient) Close(ctx context.Context) {
 func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec int, headers map[string]string, param []byte) ([]byte, error) {
 	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
 	ctx = WithLoggerName(ctx, BambooWorkerClientLoggerContextKey)
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(jobTimeoutMSec+1000)*time.Millisecond)
-	defer cancel()
+	ctx = c.logConfigFunc(ctx, headers)
 
 	logger.DebugContext(ctx, "Call")
+
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(jobTimeoutMSec+1000)*time.Millisecond)
+	defer cancel()
 
 	resultChannel, err := c.newResultChannelString()
 	if err != nil {
@@ -53,19 +60,27 @@ func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec, co
 
 	timedout := c.startTimer(ctx, time.Duration(jobTimeoutMSec)*time.Millisecond)
 
+	subscribeFunc, closeSubscribeConnection, err := c.resultSubscriber.OpenSubscribeConnection(ctx, resultChannel)
+	if err != nil {
+		return nil, internal.Errorf("resultSubscriber.OpenSubscribeConnection. err: %w", err)
+	}
+
 	ch := make(chan *ByteArreayResult)
-	defer close(ch)
-	go func() {
+
+	go func(ctx context.Context) {
+		defer close(ch)
 		sendResult := func(result *ByteArreayResult) {
 			select {
 			case <-ctx.Done():
+				return
 			case <-timedout:
+				return
 			default:
 				ch <- result
 			}
 		}
 
-		resultBytes, err := c.subscribe(ctx, resultChannel, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec)
+		resultBytes, err := c.subscribe(ctx, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec, subscribeFunc, closeSubscribeConnection)
 		if err != nil {
 			sendResult(&ByteArreayResult{Value: nil, Error: err})
 			return
@@ -73,9 +88,10 @@ func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec, co
 
 		logger.DebugContext(ctx, fmt.Sprintf("result is received. resultChannel: %s", resultChannel))
 		sendResult(&ByteArreayResult{Value: resultBytes, Error: nil})
-	}()
+	}(ctx)
 
 	logger.DebugContext(ctx, fmt.Sprintf("produce request. resultChannel: %s, heartbeatIntervalMSec: %d, jobTimeoutMSec: %d", resultChannel, heartbeatIntervalMSec, jobTimeoutMSec))
+
 	if err := c.requestProducer.Produce(ctx, resultChannel, heartbeatIntervalMSec, jobTimeoutMSec, headers, param); err != nil {
 		return nil, internal.Errorf("requestProducer.Produce. err: %w", err)
 	}
@@ -93,17 +109,42 @@ func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec, co
 	}
 }
 
-func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec int) ([]byte, error) {
+func (c *bambooWorkerClient) CallWithRetry(ctx context.Context, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec int, headers map[string]string, backOff backoff.BackOff, param []byte) ([]byte, error) {
+	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
+	ctx = WithLoggerName(ctx, BambooWorkerClientLoggerContextKey)
+	ctx = c.logConfigFunc(ctx, headers)
+
+	numAttempt := 0
+
+	var respBytes []byte
+	operation := func() error {
+		numAttempt += 1
+		ctxCopy := context.WithoutCancel(ctx)
+		respBytesTmp, err := c.Call(ctxCopy, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec, headers, param)
+		if err != nil {
+			return err
+		}
+		respBytes = respBytesTmp
+		return nil
+	}
+
+	notify := func(err error, d time.Duration) {
+		logger.WarnContext(ctx, "failed to Call", slog.Any("err", err), slog.Int("num_attempt", numAttempt))
+	}
+
+	if err := backoff.RetryNotify(operation, backOff, notify); err != nil {
+		return nil, err
+	}
+
+	return respBytes, nil
+}
+
+func (c *bambooWorkerClient) subscribe(ctx context.Context, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec int, subscribeFunc SubscribeFunc, closeSubscribeConnection CloseSubscribeConnectionFunc) ([]byte, error) {
 	logger := GetLoggerFromContext(ctx, BambooWorkerClientLoggerContextKey)
 	logger.DebugContext(ctx, "subscribe")
 
 	heartbeat := make(chan int64)
 	defer close(heartbeat)
-
-	subscribeFunc, closeSubscribeConnection, err := c.resultSubscriber.OpenSubscribeConnection(ctx, resultChannel)
-	if err != nil {
-		return nil, internal.Errorf("resultSubscriber.OpenSubscribeConnection. err: %w", err)
-	}
 
 	defer func() {
 		if err := closeSubscribeConnection(ctx); err != nil {
@@ -144,6 +185,9 @@ func (c *bambooWorkerClient) subscribe(ctx context.Context, resultChannel string
 		return nil, internal.Errorf("aborted. err: %w", ErrAborted)
 	case resp := <-c1:
 		if resp.Error != nil {
+			if resp.Value != nil {
+				return nil, fmt.Errorf("%s", string(resp.Value))
+			}
 			return nil, resp.Error
 		}
 		return resp.Value, nil
@@ -202,10 +246,10 @@ func (c *bambooWorkerClient) subscribeLoop(ctx context.Context, subscribeFunc Su
 				connectTimedoutTimer.Stop()
 			case pb.ResponseType_ABORTED:
 			case pb.ResponseType_INTERNAL_ERROR:
-				result <- ByteArreayResult{Value: nil, Error: ErrInternalError}
+				result <- ByteArreayResult{Value: resp.Data, Error: ErrInternalError}
 				return
 			case pb.ResponseType_INVALID_ARGUMENT:
-				result <- ByteArreayResult{Value: nil, Error: ErrInvalidArgument}
+				result <- ByteArreayResult{Value: resp.Data, Error: ErrInvalidArgument}
 				return
 			}
 		}
