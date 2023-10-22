@@ -65,15 +65,10 @@ func (c *bambooWorkerClient) Call(ctx context.Context, heartbeatIntervalMSec, co
 		return nil, internal.Errorf("resultSubscriber.OpenSubscribeConnection. err: %w", err)
 	}
 
-	ch := make(chan *ByteArreayResult, 1)
-	done := make(chan struct{})
-
-	defer func() {
-		close(done)
-		close(ch)
-	}()
+	ch := make(chan *ByteArreayResult)
 
 	go func(ctx context.Context) {
+		defer close(ch)
 		sendResult := func(result *ByteArreayResult) {
 			select {
 			case <-ctx.Done():

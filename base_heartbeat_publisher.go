@@ -43,5 +43,4 @@ func (h *baseHeartbeatPublisher) Run(ctx context.Context, heartbeatIntervalMSec 
 			}
 		}
 	}()
-
 }

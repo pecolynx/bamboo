@@ -37,6 +37,7 @@ func (p *redisBambooHeartbeatPublisher) Ping(ctx context.Context) error {
 
 	publisher := redis.NewUniversalClient(p.publisherOptions)
 	defer publisher.Close()
+
 	if _, err := publisher.Ping(ctx).Result(); err != nil {
 		return internal.Errorf("publisher.Ping. err: %w", err)
 	}

@@ -93,7 +93,7 @@ func main() {
 		})
 		eg.Go(func() error {
 			return baseWorker(ctx, factory, "worker_b", "worker_b", func(ctx context.Context, headers map[string]string, data []byte, aborted <-chan interface{}) ([]byte, error) {
-				time.Sleep(100 * time.Millisecond)
+				// time.Sleep(100 * time.Millisecond)
 
 				param := WorkflowAppParameter{}
 				if err := proto.Unmarshal(data, &param); err != nil {
@@ -105,7 +105,7 @@ func main() {
 		})
 		eg.Go(func() error {
 			return baseWorker(ctx, factory, "worker_c", "worker_c", func(ctx context.Context, headers map[string]string, data []byte, aborted <-chan interface{}) ([]byte, error) {
-				time.Sleep(100 * time.Millisecond)
+				// time.Sleep(100 * time.Millisecond)
 
 				if 0 == r.Intn(1000) {
 					return nil, errors.New("RANDOM ERROR")
@@ -345,7 +345,8 @@ func workerClient(ctx context.Context, factory helper.BambooFactory) {
 	defer workerClientC.Close(ctx)
 
 	dispatcher := NewDispatcher()
-	dispatcher.Run(ctx, 20)
+	dispatcher.Run(ctx, 1)
+	// dispatcher.Run(ctx, 20)
 
 	fmt.Println("Started")
 
@@ -356,7 +357,8 @@ func workerClient(ctx context.Context, factory helper.BambooFactory) {
 	connectTimeoutMSec := 0
 	jobTimeoutMSec := 10000
 
-	input := 1000
+	// input := 1000
+	input := 5000
 
 	// x * 2
 	respBytesA, err := workerClientA.Call(ctx, heartbeatIntervalMSec, connectTimeoutMSec, jobTimeoutMSec, headersA, toParam(input))
