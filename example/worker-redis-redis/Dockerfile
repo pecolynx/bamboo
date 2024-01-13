@@ -10,7 +10,7 @@ COPY . .
 RUN go build -o worker-redis-redis ./
 
 # Application image.
-FROM alpine:3.16.2
+FROM alpine:3.16
 
 # RUN apk --no-cache add tzdata=2022f-r0
 
