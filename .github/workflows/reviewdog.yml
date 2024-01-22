@@ -23,7 +23,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files-specific
-        uses: tj-actions/changed-files@v39
+        uses: tj-actions/changed-files@v42
         with:
           files: |
             ${{ matrix.workdir }}/**
@@ -106,7 +106,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files-specific
-        uses: tj-actions/changed-files@v39
+        uses: tj-actions/changed-files@v42
         with:
           files: |
             ${{ matrix.workdir }}/**
@@ -191,7 +191,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files-specific
-        uses: tj-actions/changed-files@v39
+        uses: tj-actions/changed-files@v42
         with:
           files: |
             ${{ matrix.workdir }}/**
@@ -261,7 +261,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files-specific
-        uses: tj-actions/changed-files@v39
+        uses: tj-actions/changed-files@v42
         with:
           files: |
             ${{ matrix.workdir }}/**
@@ -319,7 +319,7 @@ jobs:
           fetch-depth: 0
       - name: Get changed files
         id: changed-files-specific
-        uses: tj-actions/changed-files@v39
+        uses: tj-actions/changed-files@v42
         with:
           files: |
             ${{ matrix.workdir }}/**
